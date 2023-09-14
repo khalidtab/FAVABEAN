@@ -1,0 +1,8 @@
+name: dada2
+channels:
+    - bioconda
+    - conda-forge
+    - cctbx202211
+    - fastchan
+dependencies:
+    - r-base
