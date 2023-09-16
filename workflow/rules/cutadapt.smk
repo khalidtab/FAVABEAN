@@ -2,10 +2,9 @@ import pandas as pd
 
 samples_table = pd.read_csv("data/files_info.csv").set_index(["sample", "region"], drop=False)
 
-# Add this code after reading the CSV file
+# Check for leading or trailing whitespaces in column names
 import re
 
-# Check for leading or trailing whitespaces in column names
 def check_column_names(df):
     columns = df.columns
     stripped_columns = [col.strip() for col in columns]
@@ -18,11 +17,6 @@ whitespace_columns = check_column_names(samples_table)
 if whitespace_columns:
     print(f"Warning: The following columns have leading or trailing whitespaces: {whitespace_columns}")
 
-# Rest of your Snakemake code...
-
-
-
-
 # Function to return fq1 and fq2 for a given sample-region combination.
 def fq_dict_from_sample(wildcards):
     return {
@@ -30,21 +24,27 @@ def fq_dict_from_sample(wildcards):
         "fq2": samples_table.loc[(wildcards.sample, wildcards.region), "fastq2"]
     }
 
+# Function to generate input files for cutadapt rule
+def generate_cutadapt_inputs():
+    inputs = []
+    for _, row in samples_table.iterrows():
+        inputs.extend([
+            f"data/cutadapt/{row['Batch_ID']}-{row['region']}/{row['sample']}-R1.fastq",
+            f"data/cutadapt/{row['Batch_ID']}-{row['region']}/{row['sample']}-R2.fastq"
+        ])
+    return inputs
+
 rule cutadapt:
     input:
-        expand(["data/cutadapt/cutadapt-{batch}-{sample}-{region}-R1.fastq",
-                "data/cutadapt/cutadapt-{batch}-{sample}-{region}-R2.fastq"],
-               batch=samples_table["Batch_ID"].unique(), 
-               sample=samples_table["sample"].unique(), 
-               region=samples_table["region"].unique())
+        lambda wildcards: generate_cutadapt_inputs()
 
 rule cutadapt_action:
     input:
         fq1 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq1'],
         fq2 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq2']
     output:
-        R1 = "data/cutadapt/cutadapt-{batch}-{sample}-{region}-R1.fastq",
-        R2 = "data/cutadapt/cutadapt-{batch}-{sample}-{region}-R2.fastq"
+        R1 = "data/cutadapt/{batch}-{region}/{sample}-R1.fastq",
+        R2 = "data/cutadapt/{batch}-{region}/{sample}-R2.fastq"
     log:
         "data/logs/cutadapt-{batch}-{sample}-{region}.log"
     params:
