@@ -1,1 +1,1 @@
-
+include: "rules/cutadapt.smk"
