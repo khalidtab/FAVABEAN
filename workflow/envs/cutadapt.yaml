@@ -4,4 +4,4 @@ channels:
     - bio-forge
 dependencies:
     - cutadapt
-    - parallel
+
