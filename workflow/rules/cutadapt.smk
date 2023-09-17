@@ -54,3 +54,31 @@ rule cutadapt_action:
         """
         cutadapt -g {params.primer_5} -G {params.primer_3} -o {output.R1} -p {output.R2} {input.fq1} {input.fq2} --minimum-length 50 > {log} 2>&1
         """
+
+
+def generate_figaro_inputs():
+    inputs = []
+    for _, row in samples_table.iterrows():
+        inputs.extend([
+            f"data/figaro/{row['Batch_ID']}-{row['region']}/"
+        ])
+    return inputs
+
+rule figaro:
+    input:
+        lambda wildcards: generate_cutadapt_inputs()
+        
+rule figaro_action:
+    input:        
+        batch = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'Batch_ID'],
+        region = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'region']
+    output:
+        "data/cutadapt/{batch}-{region}/{batch}-{region}.json"
+    log:
+        "data/logs/figaro-{batch}-{region}.log"
+    conda:
+        "../envs/figaro.yaml"
+    shell:
+        """
+        figaro -i {input.batch} -o {output} -a 450 -f 1 -r 1
+        """
