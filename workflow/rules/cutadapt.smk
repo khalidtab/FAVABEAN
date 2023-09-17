@@ -81,4 +81,3 @@ rule figaro_action:
     shell:
         """
         figaro -i {input.batch} -o {output} -a 450 -f 1 -r 1
-        """
