@@ -1,5 +1,7 @@
 name: cutadapt
 channels:
     - bioconda
+    - bio-forge
 dependencies:
     - cutadapt
+    - parallel
