@@ -1,0 +1,6 @@
+
+.DS_Store
+data/.DS_Store
+workflow/.DS_Store
+workflow/rules/.DS_Store
+workflow/snakefile
