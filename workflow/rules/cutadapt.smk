@@ -7,78 +7,133 @@ samples_table = pd.read_csv("data/files_info.csv").set_index(["sample", "region"
 samples_table["fastq1"] = "data/" + samples_table["fastq1"]
 samples_table["fastq2"] = "data/" + samples_table["fastq2"]
 
-# Check for leading or trailing whitespaces in column names
-import re
-
 def check_column_names(df):
     columns = df.columns
     stripped_columns = [col.strip() for col in columns]
     whitespace_columns = [col for col, stripped_col in zip(columns, stripped_columns) if col != stripped_col]
-
     return whitespace_columns
 
 whitespace_columns = check_column_names(samples_table)
-
 if whitespace_columns:
     print(f"Warning: The following columns have leading or trailing whitespaces: {whitespace_columns}")
 
-# Function to generate input files for cutadapt rule
-def generate_cutadapt_inputs():
-    inputs = []
-    for _, row in samples_table.iterrows():
-        inputs.extend([
-            f"data/cutadapt/{row['Batch_ID']}-{row['region']}/{row['sample']}--R1.fastq",
-            f"data/cutadapt/{row['Batch_ID']}-{row['region']}/{row['sample']}--R2.fastq"
-        ])
-    return inputs
+def get_samples_from_batch_region(batch, region):
+    return samples_table.loc[(samples_table['Batch_ID'] == batch) & (samples_table['region'] == region), 'sample'].tolist()
 
 rule cutadapt:
-    input:
-        lambda wildcards: generate_cutadapt_inputs()
-
-rule cutadapt_action:
     input:
         fq1 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq1'],
         fq2 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq2']
     output:
-        R1 = "data/cutadapt/{batch}-{region}/{sample}--R1.fastq",
-        R2 = "data/cutadapt/{batch}-{region}/{sample}--R2.fastq"
+        "data/cutadapt/{batch}-{region}/.{sample}-cutadapt.done"
     log:
-        "data/logs/cutadapt-{batch}-{sample}-{region}.log"
+        "data/logs/cutadapt-{batch}-{region}-{sample}.log"
     params:
-        primer_5 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_5'],
-        primer_3 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_3']
+        primer_5 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_5'],
+        primer_3 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_3'],
+        filt=config["initial_filter"]
     conda:
         "../envs/cutadapt.yaml"
     shell:
         """
-        cutadapt -g {params.primer_5} -G {params.primer_3} -o {output.R1} -p {output.R2} {input.fq1} {input.fq2} --minimum-length 50 > {log} 2>&1
+        mkdir -p /data/cutadapt/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/ &&
+        mkdir -p /data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/ &&
+        cutadapt --minimum-length {params.filt} -g {params.primer_5} -G {params.primer_3} \
+        --too-short-output        /data/cutadapt/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/discarded_{wildcards.sample}_L001_R1_001.fastq \
+        --too-short-paired-output /data/cutadapt/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/discarded_{wildcards.sample}_L001_R2_001.fastq \
+        -o /data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_L001_R1_001.fastq \
+        -p /data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_L001_R2_001.fastq \
+        {input.fq1} {input.fq2} > {log} 2>&1 && touch {output}
         """
 
-
-def generate_figaro_inputs():
-    inputs = []
-    for _, row in samples_table.iterrows():
-        inputs.extend([
-            f"data/figaro/{row['Batch_ID']}-{row['region']}/"
-        ])
-    return inputs
-
-rule figaro:
+rule seqkit:
     input:
-        lambda wildcards: generate_cutadapt_inputs()
-        
-rule figaro_action:
-    input:        
-        batch = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'Batch_ID'],
-        region = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'region']
+        lambda wildcards: expand("data/cutadapt/{batch}-{region}/.{sample}-cutadapt.done",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region,
+                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
     output:
-        "data/cutadapt/{batch}-{region}/{batch}-{region}.json"
+        R1="data/cutadapt/{batch}-{region}/stats_R1_lengths.done",
+        R2="data/cutadapt/{batch}-{region}/stats_R2_lengths.done",
+        R1trim=touch("data/cutadapt/{batch}-{region}/.trim_R1.done"),
+        R2trim=touch("data/cutadapt/{batch}-{region}/.trim_R2.done")
     log:
-        "data/logs/figaro-{batch}-{region}.log"
+        R1="data/logs/seqkit_BBMAP-{batch}-{region}R1.log",
+        R2="data/logs/seqkit_BBMAP-{batch}-{region}R2.log"
+    params:
+        filt=config["initial_filter"],
+        trim=config["trim_param"]
     conda:
-        "../envs/figaro.yaml"
+        "../envs/seqkit.yaml"
     shell:
         """
-        figaro -i {input.batch} -o {output} -a 450 -f 1 -r 1
+        # R1
+        # If its a number, this will be placed here. If it is not, it will be rewritten in one of the codes below
+        echo {params.trim} > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1{params.trim}.txt
+        cat data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R1_001.fastq | seqkit stats > {output.R1} -T -a && 
+        values=$(tail -n 1 {output.R1} | cut -f7-11)
+        echo $values | cut -d' ' -f2 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1max_len.txt
+        echo $values | cut -d' ' -f3 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1Q1.txt
+        echo $values | cut -d' ' -f4 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1Q2.txt
+        echo $values | cut -d' ' -f5 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1Q3.txt
+        cat data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq | seqkit stats > {output.R2} -T -a &&
+        values=$(tail -n 1 {output.R2} | cut -f7-11)
+        echo $values | cut -d' ' -f2 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.Rmax_len.txt
+        echo $values | cut -d' ' -f3 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q1.txt
+        echo $values | cut -d' ' -f4 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q2.txt
+        echo $values | cut -d' ' -f5 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q3.txt
+        x_int=$(printf "%.0f\n" $(cat data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1Q1.txt))
+        y_int=$(printf "%.0f\n" $(cat data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1Q2.txt))
+        ten_percent=$((y_int / 10))
+        lower_bound=$((y_int - ten_percent))
+        upper_bound=$((y_int + ten_percent))
+        if [ "$x_int" -ge "$lower_bound" ] && [ "$x_int" -le "$upper_bound" ]; then
+            echo $x_int > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1default.txt
+        else
+            echo $y_int > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1default.txt
+        fi
+        
+        trim_file=$(cat "data/cutadapt/{wildcards.batch}-{wildcards.region}/.R1{params.trim}.txt")
+        
+        ls /data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R1*.fastq | parallel "mkdir -p {{//}}/trim/ && bbduk.sh in={{}} minlength=$trim_file maxlength=$trim_file nullifybrokenquality out=stdout.fq 2>> {log.R1} | seqkit seq --remove-gaps -m $trim_file -M $trim_file > {{//}}/trim/{{/}}"
+        
+        # R2
+        # If its a number, this will be placed here. If it is not, it will be rewritten in one of the codes below
+        echo {params.trim} > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2{params.trim}.txt
+        cat data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq | seqkit stats > {output.R2} -T -a && 
+        values=$(tail -n 1 {output.R2} | cut -f7-11)
+        echo $values | cut -d' ' -f2 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2max_len.txt
+        echo $values | cut -d' ' -f3 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q1.txt
+        echo $values | cut -d' ' -f4 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q2.txt
+        echo $values | cut -d' ' -f5 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q3.txt
+        cat data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq | seqkit stats > {output.R2} -T -a &&
+        values=$(tail -n 1 {output.R2} | cut -f7-11)
+        echo $values | cut -d' ' -f2 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.Rmax_len.txt
+        echo $values | cut -d' ' -f3 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q1.txt
+        echo $values | cut -d' ' -f4 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q2.txt
+        echo $values | cut -d' ' -f5 > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q3.txt
+        x_int=$(printf "%.0f\n" $(cat data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q1.txt))
+        y_int=$(printf "%.0f\n" $(cat data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2Q2.txt))
+        ten_percent=$((y_int / 10))
+        lower_bound=$((y_int - ten_percent))
+        upper_bound=$((y_int + ten_percent))
+        if [ "$x_int" -ge "$lower_bound" ] && [ "$x_int" -le "$upper_bound" ]; then
+            echo $x_int > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2default.txt
+        else
+            echo $y_int > data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2default.txt
+        fi
+        
+        trim_file=$(cat "data/cutadapt/{wildcards.batch}-{wildcards.region}/.R2{params.trim}.txt")
+        
+        ls data/cutadapt/{wildcards.batch}-{wildcards.region}/cutadapt/*R2*.fastq | parallel "mkdir -p {{//}}/trim/ && bbduk.sh in={{}} minlength=$trim_file maxlength=$trim_file nullifybrokenquality out=stdout.fq 2>> {log.R2} | seqkit seq --remove-gaps -m $trim_file -M $trim_file > {{//}}/trim/{{/}}"
+        
         """
+
+combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
+
+rule all:
+    input:
+        expand("data/cutadapt/{batch}-{region}/stats_R1_lengths.done", 
+                batch=[combo[0] for combo in combinations],
+               region=[combo[1] for combo in combinations])
+

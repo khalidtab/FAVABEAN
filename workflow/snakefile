@@ -1,1 +1,2 @@
+configfile: "data/input.yaml"
 include: "rules/cutadapt.smk"

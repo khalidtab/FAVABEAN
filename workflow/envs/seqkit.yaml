@@ -1,6 +1,8 @@
-name: cutadapt
+name: seqkit
 channels:
     - bioconda
     - conda-forge
 dependencies:
-    - cutadapt
+    - seqkit
+    - bbmap
+    - parallel
