@@ -24,14 +24,14 @@ rule cutadapt:
    shell:
       "touch {output}"
 
-rule seqtk:
+rule seqkit:
    conda:
-      "./workflow/envs/seqtk.yaml"
-   message: "Creating seqtk"
+      "./workflow/envs/seqkit.yaml"
+   message: "Creating seqkit"
    input:
       "{sample}"
    output:
-      temporary(touch("{sample}seqtk"))
+      temporary(touch("{sample}seqkit"))
    shell:
       "touch {output}"
 
@@ -52,7 +52,7 @@ rule results:
    input:
       rules.figaro.output,
       rules.cutadapt.output,
-      rules.seqtk.output,
+      rules.seqkit.output,
       rules.dada2.output
    message: "Cleaning up…"
    output:
