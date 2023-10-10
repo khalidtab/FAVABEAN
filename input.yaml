@@ -26,7 +26,7 @@ trim_param:
 
 # Figaro provides multiple options for the DADA2 parameters such highest coverage (retained % of sequences)
 # Below you can mention which of these you want to proceed
-
+# This only accepts one value only. So if you have more than 1 uncommented, only the first one will be used0
 figaro:
     - highest_coverage
-    - 
+#    - lowest_errors
