@@ -1,2 +1,2 @@
 configfile: "data/input.yaml"
-include: "rules/steps.smk"
+include: "rules/step1.smk"
