@@ -51,11 +51,11 @@ if (DADA2Options == "least_errors"){
   result_row = min_R2EE_rows[which.max(min_R2EE_rows$score),] # If there are still ties, find row with maximum score
   }
 
-fnFs = sort(list.files(paste0(inputFolder,"/cutadapt"), pattern="R1", full.names = TRUE))
-fnRs = sort(list.files(paste0(inputFolder,"/cutadapt"), pattern="R2", full.names = TRUE))
+fnFs = sort(list.files(inputFolder, pattern="R1", full.names = TRUE))
+fnRs = sort(list.files(inputFolder, pattern="R2", full.names = TRUE))
 sample.names <- sapply(strsplit(basename(fnFs), "_R1_"), `[`, 1)
-filtFs <- file.path(paste0(inputFolder,"/dada2/") , paste0(sample.names, "_filt_R1_001.fastq.gz"))
-filtRs <- file.path(paste0(inputFolder,"/dada2/"), paste0(sample.names, "_filt_R2_001.fastq.gz"))
+filtFs <- file.path(paste0(inputFolder,"/dada2"), "filtered", paste0(sample.names, "_filt_S1_L001_R1_001.fastq.gz"))
+filtRs <- file.path(paste0(inputFolder,"/dada2"), "filtered", paste0(sample.names, "_filt_S1_L001_R2_001.fastq.gz"))
 names(filtFs) <- sample.names
 names(filtRs) <- sample.names
 
