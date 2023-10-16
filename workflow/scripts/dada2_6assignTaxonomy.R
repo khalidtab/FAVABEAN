@@ -1,0 +1,1 @@
+taxa3 = assignTaxonomy(df1, "~/Downloads/resources/silva_nr99_v138.1_wSpecies_train_set.fa",verbose=TRUE, tryRC = TRUE, multithread = TRUE)

@@ -42,7 +42,7 @@ rule cutadapt:
         fq1 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq1'],
         fq2 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq2']
     output:
-        touch("data/favabean/{batch}-{region}/.{sample}-cutadapt.done")
+        touch("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done")
     log:
         "data/logs/cutadapt-{batch}-{region}-{sample}.log"
     params:
@@ -50,6 +50,7 @@ rule cutadapt:
         primer_3 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_3'],
         sampleNum =     lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'SampleNum'],
         filt=config["initial_filter"]
+    message: "Cutadapt - Removing the adaptors for sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/cutadapt.yaml"
     shell:
@@ -70,18 +71,19 @@ rule cutadapt:
 
 rule seqkitR1:
     input:
-        lambda wildcards: expand("data/favabean/{batch}-{region}/.{sample}-cutadapt.done",
+        lambda wildcards: expand("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done",
                                  batch=wildcards.batch,
                                  region=wildcards.region,
                                  sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
     output:
-        R1done=touch("data/favabean/{batch}-{region}/.trim_R1.done")
+        R1done=touch("data/favabean/{batch}-{region}/.tmp/.trim_R1.done")
     log:
         R1="data/logs/seqkit_BBMAP-{batch}-{region}R1.log"
     params:
         filt=config["initial_filter"],
         trim=config["trim_param"],
         R1="R1"
+    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R1 of sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/seqkit.yaml"
     shell:
@@ -117,30 +119,28 @@ rule seqkitR1:
 
 use rule seqkitR1 as seqkitR2 with:
     output:
-        R1done=touch("data/favabean/{batch}-{region}/.trim_R2.done")
+        R1done=touch("data/favabean/{batch}-{region}/.tmp/.trim_R2.done")
     log:
         R1="data/logs/seqkit_BBMAP-{batch}-{region}R2.log"
     params:
         filt=config["initial_filter"],
         trim=config["trim_param"],
         R1="R2"
-
-
-
-#    return min(2 * core_multiplier, total_cores)
+    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R2 of sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
 
 
 
 rule figaro:
     input:
-        "data/favabean/{batch}-{region}/.trim_R1.done",
-        "data/favabean/{batch}-{region}/.trim_R2.done"
+        "data/favabean/{batch}-{region}/.tmp/.trim_R1.done",
+        "data/favabean/{batch}-{region}/.tmp/.trim_R2.done"
     output:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
     log:
         R1="data/logs/figaro-{batch}-{region}.log"
     conda:
         "../envs/figaro.yaml"
+    message: "Figaro - calculating the optimal parameters for DADA2 trimming for batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
          python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/trim -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina >> {log}
@@ -153,36 +153,134 @@ rule figaro:
 def determine_threads(wildcards):
     total_cores = workflow.cores
     core_multiplier = workflow.attempt
-    return total_cores
+    return total_cores/2
+    #    return min(2 * core_multiplier, total_cores)
     # This sets a base of 2 threads per job and adjusts based on the attempt number.
     # Adjust this logic as needed for your specific use-case.
 
 
 # Note that this uses the cutadapt files, and not the figaro ones!
-rule dada2:
+rule dada2_1_filterTrim:
     input:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
     output:
-        "data/favabean/{batch}-{region}/cutadapt/seqtab.tsv"
+        trimFilter=directory("data/favabean/{batch}-{region}/dada2"),
+        donefile  = touch("data/favabean/{batch}-{region}/.tmp/.DADA2_trimFilter.done")
     log:
-        R1="data/logs/dada2-{batch}-{region}.log"
+        R1="data/logs/dada2-1trimFilter-{batch}-{region}.log"
+    conda:
+        "../envs/dada2.yaml"
+    params:
+        figaro=config["figaro"]
+    message: "DADA2 - trimming and filtering FASTQ files based on Figaro's {params.figaro} chosen method. batch: {wildcards.batch}, region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_1filterAndTrim.R -i {input} -f data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt -o data/favabean/{wildcards.batch}-{wildcards.region}/dada2 -p {params.figaro} -c {threads} >> {log} 2>&1
+        """
+
+
+rule dada2_2_learnErrors_R1:
+    input:
+        "data/favabean/{batch}-{region}/dada2"
+    output:
+        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R1.RData"
+    log:
+        "data/logs/dada2-2learnErrors-{batch}-{region}-R1.log"
+    conda:
+        "../envs/dada2.yaml"
+    params:
+        R="R1"
+    threads:
+        determine_threads
+    message: "DADA2 - Learning errors for R1. batch: {wildcards.batch}, region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_2LearnErrors.R -i {input} -r {params.R} -c {threads} >> {log} 2>&1
+        """
+
+use rule dada2_2_learnErrors_R1 as dada2_2_learnErrors_R2 with:
+    input:
+        "data/favabean/{batch}-{region}/dada2"
+    output:
+        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R2.RData"
+    log:
+        "data/logs/dada2-2learnErrors-{batch}-{region}-R2.log"
+    conda:
+        "../envs/dada2.yaml"
+    params:
+        R="R2"
+    message: "DADA2 - Learning errors for R2. batch: {wildcards.batch}, region: {wildcards.region}"
+    
+rule dada2_3_denoise_R1:
+    input:
+        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R1.RData"
+    output:
+        "data/favabean/{batch}-{region}/dada2_DADA2Denoise-R1.RData"
+    log:
+        "data/logs/dada2-3denoise-{batch}-{region}-R1.log"
     conda:
         "../envs/dada2.yaml"
     threads:
         determine_threads
-    params:
-        figaro=config["figaro"]
+    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2.R -i {input} -f data/favabean/{wildcards.batch}-{wildcards.region}/ -p {params.figaro} -c {threads} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input} -c {threads} >> {log} 2>&1
         """
 
+use rule dada2_3_denoise_R1 as dada2_3_denoise_R2 with:
+    input:
+        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R2.RData"
+    output:
+        "data/favabean/{batch}-{region}/dada2_DADA2Denoise-R2.RData"
+    log:
+        "data/logs/dada2-3denoise-{batch}-{region}-R2.log"
+    conda:
+        "../envs/dada2.yaml"
+    threads:
+        determine_threads
+    message: "DADA2 - Denoising amplicons based on the learned errors for R2 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
+
+rule dada2_4_mergePairedEnds:
+    input:
+        R1="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R1.RData",
+        R2="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R2.RData"
+    output:
+        "data/favabean/{batch}-{region}/seqtab.tsv"
+    log:
+        "data/logs/dada2-mergePairedEnds-{batch}-{region}.log"
+    conda:
+        "../envs/dada2.yaml"
+    message: "DADA2 - Merging ASV paired ends (R1, R2). batch: {wildcards.batch}, region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_4merge.R -i {input.R1} -s {input.R2} >> {log} 2>&1
+         rm -rf data/favabean/{batch}-{region}/.tmp
+        """
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
 
-rule all:
+rule dada2_5_mergeBatches_ChimeraDetectAndRemove_condenseASVs:
     input:
-        expand("data/favabean/{batch}-{region}/cutadapt/seqtab.tsv", 
+        expand("data/favabean/{batch}-{region}/seqtab.tsv", 
                 batch=[combo[0] for combo in combinations],
                region=[combo[1] for combo in combinations])
+    output:
+        "data/favabean/{region}_condensed_ASVs.tsv"
+    log:
+        "data/logs/dada2-condenseASVs-{region}.log"
+    conda:
+        "../envs/dada2.yaml"
+    message: "DADA2 - Merging ASVs from different runs, then detecting and removing chimeras through de novo process, then condensing ASVs. region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_5mergruns_chimera_condense.R -i {input} >> {log} 2>&1
+        """
+
+rule all:
+    input:
+        expand("data/favabean/{region}_condensed_ASVs.tsv", 
+               region=[combo[1] for combo in combinations])
+
+
 
