@@ -210,7 +210,9 @@ use rule dada2_2_learnErrors_R1 as dada2_2_learnErrors_R2 with:
     params:
         R="R2"
     message: "DADA2 - Learning errors for R2. batch: {wildcards.batch}, region: {wildcards.region}"
-    
+
+
+
 rule dada2_3_denoise_R1:
     input:
         "data/favabean/{batch}-{region}/dada2_DADA2Errors-R1.RData"
@@ -220,12 +222,14 @@ rule dada2_3_denoise_R1:
         "data/logs/dada2-3denoise-{batch}-{region}-R1.log"
     conda:
         "../envs/dada2.yaml"
+    params:
+        R="R1"
+    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
     threads:
         determine_threads
-    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input} -c {threads} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input} -c {threads} -r {params.R} >> {log} 2>&1
         """
 
 use rule dada2_3_denoise_R1 as dada2_3_denoise_R2 with:
@@ -239,6 +243,8 @@ use rule dada2_3_denoise_R1 as dada2_3_denoise_R2 with:
         "../envs/dada2.yaml"
     threads:
         determine_threads
+    params:
+        R="R2"
     message: "DADA2 - Denoising amplicons based on the learned errors for R2 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
 
 rule dada2_4_mergePairedEnds:
@@ -255,7 +261,7 @@ rule dada2_4_mergePairedEnds:
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_4merge.R -i {input.R1} -s {input.R2} >> {log} 2>&1
-         rm -rf data/favabean/{batch}-{region}/.tmp
+         rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/.tmp
         """
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
