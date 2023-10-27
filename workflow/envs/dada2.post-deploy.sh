@@ -1,3 +1,3 @@
-source /opt/conda/bin/activate
 conda activate $CONDA_PREFIX
+cd ./workflow/envs/
 Rscript install_packages.R
