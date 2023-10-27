@@ -83,7 +83,7 @@ rule seqkitR1:
         filt=config["initial_filter"],
         trim=config["trim_param"],
         R1="R1"
-    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R1 of sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R1 from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/seqkit.yaml"
     shell:
@@ -126,7 +126,7 @@ use rule seqkitR1 as seqkitR2 with:
         filt=config["initial_filter"],
         trim=config["trim_param"],
         R1="R2"
-    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R2 of sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R2 from batch: {wildcards.batch}, region: {wildcards.region}"
 
 
 
@@ -260,32 +260,66 @@ rule dada2_4_mergePairedEnds:
     message: "DADA2 - Merging ASV paired ends (R1, R2). batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_4merge.R -i {input.R1} -s {input.R2} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_4mergeR1R2.R -i {input.R1} -s {input.R2} >> {log} 2>&1
          rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/.tmp
         """
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
 
-rule dada2_5_mergeBatches_ChimeraDetectAndRemove_condenseASVs:
+rule dada2_5_mergeBatches:
     input:
         expand("data/favabean/{batch}-{region}/seqtab.tsv", 
                 batch=[combo[0] for combo in combinations],
                region=[combo[1] for combo in combinations])
     output:
-        "data/favabean/{region}_condensed_ASVs.tsv"
+        "data/favabean/{region}_mergedRuns.RObjects"
+    log:
+        "data/logs/dada2-mergingBatchesASVs-{region}.log"
+    conda:
+        "../envs/dada2.yaml"
+    message: "DADA2 - Merging ASVs from different runs. region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_5mergeruns.R -i data/favabean/ -o {output} -r {wildcards.region} >> {log} 2>&1
+        """
+
+rule dada2_6_ChimeraDetectAndRemove:
+    input:
+        "data/favabean/{region}_mergedRuns.RObjects"
+    output:
+        "data/favabean/{region}_chimeraRemoved.RObjects"
+    log:
+        "data/logs/dada2-ChimeraASVs-{region}.log"
+    conda:
+        "../envs/dada2.yaml"
+    threads:
+        determine_threads
+    message: "DADA2 - Removing chimeras through a de novo process. region: {wildcards.region}"
+    shell:
+        """
+         Rscript --vanilla workflow/scripts/dada2_6chimera.R -i {input} -c {threads} -o {output} >> {log} 2>&1
+        """
+
+rule dada2_7_condense:
+    input:
+        "data/favabean/{region}_chimeraRemoved.RObjects"
+    output:
+        "data/favabean/{region}_condense.tsv"
     log:
         "data/logs/dada2-condenseASVs-{region}.log"
     conda:
         "../envs/dada2.yaml"
-    message: "DADA2 - Merging ASVs from different runs, then detecting and removing chimeras through de novo process, then condensing ASVs. region: {wildcards.region}"
+    threads:
+        determine_threads
+    message: "DADA2 - Condensing ASVs. region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_5mergruns_chimera_condense.R -i {input} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_7condense.R -i {input} -c {threads} -o {output} >> {log} 2>&1
         """
 
 rule all:
     input:
-        expand("data/favabean/{region}_condensed_ASVs.tsv", 
+        expand("data/favabean/{region}_condense.tsv", 
                region=[combo[1] for combo in combinations])
 
 
