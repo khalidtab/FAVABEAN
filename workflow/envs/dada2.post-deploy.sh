@@ -1,1 +1,3 @@
-/bin/bash -c 'conda run -n $CONDA_PREFIX Rscript install_packages.R'
+source /opt/conda/bin/activate
+conda activate $CONDA_PREFIX
+Rscript install_packages.R
