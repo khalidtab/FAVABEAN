@@ -6,3 +6,4 @@ channels:
     - fastchan
 dependencies:
     - r-base
+    - r-biocmanager
