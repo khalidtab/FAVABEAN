@@ -28,7 +28,7 @@ outputFile = opt$output
 region = opt$region
 
 # Set up parallel processing
-plan(multisession)
+plan(multicore)
 
 # List all files with "seqtab.tsv" pattern and filter for those that contain the 'region' variable
 seqtabs <- list.files(inputFolder, pattern="seqtab.tsv", full.names = TRUE, recursive = TRUE) %>% 
@@ -36,11 +36,18 @@ seqtabs <- list.files(inputFolder, pattern="seqtab.tsv", full.names = TRUE, recu
 
 # Define a function to read and reshape each table
 read_and_reshape <- function(x) {
-  cat("Currently merging table", x, "\n")
-  read_tsv(x) %>%
-    mutate(across(-V1, as.character), source = x) %>% # Convert all non-V1 columns to character and add source column for the filename
-    pivot_longer(cols = -c(source, V1), names_to = "sequence", values_to = "abundance")
+  tryCatch({
+    cat("Currently merging table", x, "\n")
+    read_tsv(x) %>%
+      mutate(across(-V1, as.character), source = x) %>% 
+      pivot_longer(cols = -c(source, V1), names_to = "sequence", values_to = "abundance")
+  }, error = function(e) {
+    message("Error processing file: ", x, ". Error: ", e$message)
+    return(NULL)  # or return an empty tibble or some other default value
+  })
 }
+
+print("Ready to start combining the different runs now…")
 
 # Parallelize the reading and reshaping operation
 combinedTables <- future_map_dfr(seqtabs, read_and_reshape)
