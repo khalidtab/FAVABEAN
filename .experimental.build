@@ -12,7 +12,7 @@ RUN git clone -b experimental https://github.com/khalidtab/FAVABEAN && \
     cp FAVABEAN/workflow/snakefile ./snakefile && \
     rm -r FAVABEAN && \
     mkdir conda_envs && \
-    snakemake snakefile.final --conda-prefix /workspace/conda_envs --use-conda --cores all --conda-create-envs-only --snakefile ./build.snakefile > environments.txt && \
+    snakemake snakefile.final --conda-prefix conda_envs --use-conda --cores all --conda-create-envs-only --snakefile ./build.snakefile > environments.txt && \
     rm ./build.snakefile && \
     conda clean -a -y && \
     rm ./snakefile
