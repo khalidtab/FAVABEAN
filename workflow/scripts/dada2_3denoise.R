@@ -27,4 +27,4 @@ dadaDenoised = dada(theFiles, err=DADA2errors, multithread=cores, pool=TRUE, ver
 print("Done with denoising. Will write file now…")
 rm(opt,cores)
 
-save(list = ls(all.names = TRUE), file = paste0(inputFolder,"_DADA2Denoise-",rDirection,".RData"), envir = .GlobalEnv)
+save(dadaDenoised, theFiles, inputFolder,file = paste0(inputFolder,"_DADA2Denoise-",rDirection,".RData"), envir = .GlobalEnv)

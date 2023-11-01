@@ -26,14 +26,14 @@ load(R1denoised)
 dadaFs = dadaDenoised
 filtFs = theFiles
 
-rm(theFiles, R1denoised, dadaDenoised, theFiles, DADA2errors)
+rm(theFiles, dadaDenoised)
 
 load(R2denoised)
 
 dadaRs = dadaDenoised
 filtRs = theFiles
 
-rm(theFiles, R1denoised, dadaDenoised, theFiles, DADA2errors)
+rm(theFiles, dadaDenoised)
 
 print("Samples merging to begin…")
 mergers = mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
@@ -41,5 +41,7 @@ print("Sample merging completed.")
 seqtab = makeSequenceTable(mergers)
 seqtab = as.data.frame(cbind(rownames(seqtab),seqtab))
 
-write_tsv(seqtab,file=paste0(dirname(inputFolder),"/seqtab.tsv"))
+seqtab2 = seqtab %>% pivot_longer(cols = -c(V1), names_to = "sequence", values_to = "abundance")
+
+write_tsv(seqtab2,file=paste0(dirname(inputFolder),"/seqtab.tsv"),col_names=FALSE)
 

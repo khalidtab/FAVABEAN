@@ -35,6 +35,24 @@ extractor = Extractor()
 # Apply the getSampleInfo method to the fastq1 column and store the results in a new column
 samples_table["SampleNum"] = samples_table["fastq1"].apply(lambda x: extractor.getSampleInfo(x))
 
+
+
+def determine_threads(wildcards):
+    total_cores = workflow.cores
+    core_multiplier = workflow.attempt
+    return total_cores/2
+    #    return min(2 * core_multiplier, total_cores)
+    # This sets a base of 2 threads per job and adjusts based on the attempt number.
+    # Adjust this logic as needed for your specific use-case.
+
+def all_threads(wildcards):
+    total_cores = workflow.cores
+    core_multiplier = workflow.attempt
+    return total_cores
+    #    return min(2 * core_multiplier, total_cores)
+    # This sets a base of 2 threads per job and adjusts based on the attempt number.
+    # Adjust this logic as needed for your specific use-case.
+    
 # Now the samples_table variable has the updated "SampleNum" column and can be used in the rest of your script.
 
 rule cutadapt:
@@ -91,7 +109,7 @@ rule seqkitR1:
         # R1
         # If its a number, this will be placed here. If it is not, it will be rewritten in one of the codes below
         echo {params.trim} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.{params.R1}{params.trim}.txt
-        cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*{params.R1}_001.fastq | seqkit stats >> data/favabean/{wildcards.batch}-{wildcards.region}/stats_{params.R1}_lengths.txt -T -a && 
+        cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*{params.R1}_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_{params.R1}_lengths.txt -T -a && 
         values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_{params.R1}_lengths.txt | cut -f7-11)
         echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}max_len.txt
         echo $values | cut -d' ' -f3 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q1.txt
@@ -141,22 +159,14 @@ rule figaro:
     conda:
         "../envs/figaro.yaml"
     message: "Figaro - calculating the optimal parameters for DADA2 trimming for batch: {wildcards.batch}, region: {wildcards.region}"
+    threads:
+        determine_threads
     shell:
         """
          python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/trim -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina >> {log}
          # Do some clean up of files
          rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/trim
         """
-
-
-
-def determine_threads(wildcards):
-    total_cores = workflow.cores
-    core_multiplier = workflow.attempt
-    return total_cores/2
-    #    return min(2 * core_multiplier, total_cores)
-    # This sets a base of 2 threads per job and adjusts based on the attempt number.
-    # Adjust this logic as needed for your specific use-case.
 
 
 # Note that this uses the cutadapt files, and not the figaro ones!
@@ -266,26 +276,12 @@ rule dada2_4_mergePairedEnds:
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
 
-rule dada2_5_mergeBatches:
+
+rule dada2_5_ChimeraDetectAndRemove:
     input:
         expand("data/favabean/{batch}-{region}/seqtab.tsv", 
                 batch=[combo[0] for combo in combinations],
                region=[combo[1] for combo in combinations])
-    output:
-        "data/favabean/{region}_mergedRuns.RObjects"
-    log:
-        "data/logs/dada2-mergingBatchesASVs-{region}.log"
-    conda:
-        "../envs/dada2.yaml"
-    message: "DADA2 - Merging ASVs from different runs. region: {wildcards.region}"
-    shell:
-        """
-         Rscript --vanilla workflow/scripts/dada2_5mergeruns.R -i data/favabean/ -o {output} -r {wildcards.region} >> {log} 2>&1
-        """
-
-rule dada2_6_ChimeraDetectAndRemove:
-    input:
-        "data/favabean/{region}_mergedRuns.RObjects"
     output:
         "data/favabean/{region}_chimeraRemoved.RObjects"
     log:
@@ -293,14 +289,15 @@ rule dada2_6_ChimeraDetectAndRemove:
     conda:
         "../envs/dada2.yaml"
     threads:
-        determine_threads
-    message: "DADA2 - Removing chimeras through a de novo process. region: {wildcards.region}"
+        all_threads
+    message: "DADA2 - Combining the results from the different runs, then removing chimeras through a de novo process. region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_6chimera.R -i {input} -c {threads} -o {output} >> {log} 2>&1
+        cat {input} > ./data/favabean/{wildcards.region}_seqtab.txt && 
+        Rscript --vanilla workflow/scripts/dada2_5chimera.R -i ./data/favabean/{wildcards.region}_seqtab.txt -c {threads} -o {output} >> {log} 2>&1
         """
 
-rule dada2_7_condense:
+rule dada2_6_condense:
     input:
         "data/favabean/{region}_chimeraRemoved.RObjects"
     output:
@@ -314,7 +311,7 @@ rule dada2_7_condense:
     message: "DADA2 - Condensing ASVs. region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_7condense.R -i {input} -c {threads} -o {output} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_6condense.R -i {input} -c {threads} -o {output} -r {wildcards.region} >> {log} 2>&1
         """
 
 rule all:
