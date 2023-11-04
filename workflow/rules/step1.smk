@@ -297,6 +297,7 @@ rule dada2_5_ChimeraDetectAndRemove:
         Rscript --vanilla workflow/scripts/dada2_5chimera.R -i ./data/favabean/{wildcards.region}_seqtab.txt -c {threads} -o {output} >> {log} 2>&1
         """
 
+
 rule dada2_6_condense:
     input:
         "data/favabean/{region}_chimeraRemoved.RObjects"
@@ -311,13 +312,71 @@ rule dada2_6_condense:
     message: "DADA2 - Condensing ASVs. region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_6condense.R -i {input} -c {threads} -o {output} -r {wildcards.region} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_6condense.R -i {input} -o {output} -r {wildcards.region} >> {log} 2>&1
         """
 
-rule all:
+def get_urls(db_name, filetype):
+    if config["taxonomy_database"][db_name]["use"]:
+        if filetype == "ref":
+            return config["taxonomy_database"][db_name]["url"]
+        elif filetype == "species":
+            return config["taxonomy_database"][db_name]["species"]
+    return None
+
+rule download_taxonomy_databases:
+    output:
+        ref     = "data/resources/{db}_ref.fa.gz",
+        species = "data/resources/{db}_species.fa.gz"
+    params:
+        ref_url = lambda wildcards: get_urls(wildcards.db, "ref"),
+        species_url = lambda wildcards: get_urls(wildcards.db, "species")
+    run:
+        if params.ref_url:
+            shell("curl -L {params.ref_url} -o {output.ref}")
+        if params.species_url:
+            shell("curl -L {params.species_url} -o {output.species}")
+
+rule dada2_7_assignTaxonomy:
     input:
-        expand("data/favabean/{region}_condense.tsv", 
-               region=[combo[1] for combo in combinations])
+        ASVs="data/favabean/{region}_condense.tsv",
+        ref =ancient("data/resources/{db}_ref.fa.gz"),
+        spec=ancient("data/resources/{db}_species.fa.gz")
+    output:
+        taxonomy="data/favabean/{region}_{db}_taxonomy.tsv"
+    log:
+        "data/logs/dada2-{region}-{db}_taxonomy.log"
+    conda:
+        "../envs/dada2.yaml"
+    threads:
+        determine_threads
+    shell:
+        """
+        Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
+            -i {input.ASVs} \
+            -o {output.taxonomy} \
+            -d {input.ref} \
+            -s {input.spec} \
+            > {log} 2>&1
+        """
 
+rule paired_taxonomy:
+    input:
+        expand("data/favabean/{region}_{db}_taxonomy.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
 
+rule paired:
+    input:
+        expand("data/favabean/{region}_condense.tsv",region=[combo[1] for combo in combinations])
 
+rule average:
+    output:
+        touch(temporary("data/favabean/.condensed_taxonomy.done"))
+    log:
+        "data/logs/condensed_taxonomy.log"
+    conda:
+        "../envs/dada2.yaml"
+    params:
+        db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)]
+    shell:
+        """
+        Rscript --vanilla workflow/scripts/primer_average.R -d {params.db} >> {log} 2>&1
+        """

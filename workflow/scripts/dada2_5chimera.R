@@ -31,4 +31,4 @@ seqtab_noChim =  removeBimeraDenovo(seqtab_combined, multithread =  TRUE, verbos
 
 print("Chimeras removed")
 
-save(list = list(seqtab_noChim), file = outputFile, envir = .GlobalEnv)
+write_tsv(seqtab_noChim,outputFile)
