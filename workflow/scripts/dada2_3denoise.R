@@ -1,7 +1,7 @@
 suppressMessages(library("optparse"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-
+suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="Path to Robject containing the error model and path to the fastq files", metavar="Path to Robject containing the error model and path to the fastq files"),
@@ -23,7 +23,9 @@ cores = as.numeric(opt$cores)
 rDirection = opt$rdirection
 
 # Denoising the sequences
+tic()
 dadaDenoised = dada(theFiles, err=DADA2errors, multithread=cores, pool=TRUE, verbose=2)
+toc()
 print("Done with denoising. Will write file now…")
 rm(opt,cores)
 

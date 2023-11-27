@@ -3,6 +3,7 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
+suppressMessages(library("tictoc"))
 
 
 option_list = list(
@@ -10,7 +11,8 @@ option_list = list(
   make_option(c("-d", "--database"), type="character", default=NULL, help="input database to use for taxonomy assignemnt", metavar="input database"),
   make_option(c("-s", "--species"), type="character", default=NULL, help="input database for species assignment to use for taxonomy assignemnt", metavar="input species database"),
   make_option(c("-c", "--cores"), type="character", default=NULL, help="Number of cores to use", metavar="Number of cores to use"),
-  make_option(c("-o", "--output"), type="character", default=NULL, help="output file", metavar="output file")
+  make_option(c("-o", "--output"), type="character", default=NULL, help="output file", metavar="output file"),
+  make_option(c("-t", "--taxonomy"), type="character", default=NULL, help="output taxonomy file", metavar="output taxonomy file")
 );
 
 opt_parser = OptionParser(option_list=option_list);
@@ -28,14 +30,20 @@ myDatabase = opt$database
 mySpecies = opt$species
 myCores = opt$cores
 myOutput = opt$output
+taxonomyOutput = opt$taxonomy
 
 inputMatrix = read_tsv(inputFile) %>% as.data.frame(.)
-colnames(inputMatrix)[1] = ""
-ASVs = colnames(inputMatrix)[-1]
+ASVs = inputMatrix$SampleIDs
 
+tic()
+print("Beginning assignment up to genus level.")
 taxa3 = dada2::assignTaxonomy(ASVs, myDatabase,verbose=TRUE, tryRC = TRUE, multithread = FALSE)
+toc()
 print("Taxonomy assignment up to genus level is completed.")
+tic()
+print("Beginning assignment up to species level.")
 taxa4 = dada2::assignSpecies(taxa3,mySpecies,tryRC = TRUE)
+toc()
 print("Taxonomy assignment up to species level is completed.")
 
 taxa3 = cbind(rownames(taxa3),taxa3) %>% as.data.frame(.)
@@ -45,11 +53,17 @@ taxa5 = dplyr::left_join(taxa3,taxa4)
 taxa5[is.na(taxa5)] = ""
 taxonomy = paste0("k__",taxa5$Kingdom,"; p__",taxa5$Phylum,"; c__",taxa5$Class,"; o__",taxa5$Order,"; f__",taxa5$Family,"; g__",taxa5$Genus,"; s__",taxa5$Species)
 
-inputMatrix2 = t(inputMatrix) %>% as.data.frame(.)
-colnames(inputMatrix2) = inputMatrix2[1,]
-inputMatrix2 = inputMatrix2[-1,]
-inputMatrix3 = cbind(inputMatrix2,taxonomy)
-OTU_IDs = rownames(inputMatrix3)
-inputMatrix3 = cbind(OTU_IDs,inputMatrix3)
+
+inputMatrix2 = cbind(inputMatrix,taxonomy)
+OTU_IDs = rownames(inputMatrix2)
+inputMatrix3 = cbind(paste0("OTU",OTU_IDs),inputMatrix2)
+
+colnames(inputMatrix3)[1] = "#SampleID"
+taxonomy = data.frame(OTU_ID = inputMatrix3$`#SampleID`, Sequences = inputMatrix3$SampleIDs, Taxonomy = inputMatrix3$taxonomy)
+
+inputMatrix3 = inputMatrix3 %>% .[,-which(colnames(.) %in% c("SampleIDs","taxonomy"))]
+
 
 write_tsv(inputMatrix3,myOutput)
+write_tsv(taxonomy,taxonomyOutput)
+

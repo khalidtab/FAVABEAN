@@ -3,10 +3,11 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-
+suppressMessages(library("tictoc"))
 
 option_list = list(
-  make_option(c("-i", "--input"), type="character", default=NULL, help="input combined sequence file", metavar="input combined sequence file"),
+  make_option(c("-i", "--input"), type="character", default=NULL, help="input folder with the seqtab files to be combined", metavar="input folder with the seqtab files to be combined"),
+  make_option(c("-p", "--parameter"), type="character", default=NULL, help="from all the seqfiles in that folder, any selection parameter you want to apply, eg, indication of the sequenced region", metavar="indication of the sequenced region"),
   make_option(c("-o", "--output"), type="character", default=NULL, help="output file", metavar="output file"),
   make_option(c("-c", "--cores"), type="character", default=NULL, help="cores", metavar="cores")
 );
@@ -19,16 +20,41 @@ if (is.null(opt$input)){
   stop("At least one argument must be supplied (input file)", call.=FALSE)
 }
 
-inputfile = opt$input
+
 outputFile = opt$output
 cores = as.numeric(opt$cores)
 
-seqtab_combined = read_tsv(inputfile,col_names= c("V1","sequence","abundance"), col_types = list("c","c","i"))
+inputfile = opt$input
+myparameter = opt$parameter
 
-print(paste0("Starting chimera removal on file",inputfile))
+inputfiles = list.files(inputfile,pattern = "seqtab", full.names = TRUE, recursive = TRUE)
+inputfiles2 = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.]
 
-seqtab_noChim =  removeBimeraDenovo(seqtab_combined, multithread =  TRUE, verbose=TRUE)
+process_file <- function(path) {
+  newTable <- read_tsv(path) %>% 
+    as.data.frame() 
+  
+  rownames(newTable) <- newTable[, 1]
+  newTable[, 1] <- NULL
+  
+  newTable = as.matrix(newTable)
+  return(newTable)
+}
 
+inputfiles2 = base::sapply(inputfiles2, process_file,simplify=TRUE)
+print("Merging sequence tables…")
+tic()
+inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
+toc()
+print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
+
+inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
+print("Done table format modification. Will start chimera identification and removal")
+tic()
+seqtab_noChim =  removeBimeraDenovo(inputfiles3, multithread =  TRUE, verbose=TRUE, method = "pooled")
+toc()
 print("Chimeras removed")
 
-write_tsv(seqtab_noChim,outputFile)
+inputfile4 = inputfiles2 %>% .[,colnames(.) %in% seqtab_noChim$sequence]
+
+save(inputfile4, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)

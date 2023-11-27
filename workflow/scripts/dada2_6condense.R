@@ -3,7 +3,7 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-
+suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="input file after chimera removal", metavar="input file after chimera removal"),
@@ -24,21 +24,16 @@ if (is.null(opt$input)){
 inputFile = opt$input
 cores = opt$cores
 
-seqtab_combined = read_tsv(inputFile, col_types = list("c","c","i"))
+load(inputFile)
 
-seqtab_combined = pivot_wider(unique(seqtab_combined), names_from = "sequence", values_from = "abundance")
-seqtab_combined = as.data.frame(seqtab_combined)
-row.names(seqtab_combined) = seqtab_combined[,1]
-seqtab_combined[,1] = NULL
-seqtab_combined = as.matrix(seqtab_combined)
-seqtab_combined[is.na(seqtab_combined)] = 0
-
-
-condensed_table = collapseNoMismatch(seqtab_combined, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
+tic()
+print("starting collapse of ASVs…")
+condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
+toc()
 SampleIDs = rownames(condensed_table)
 condensed_table = as.data.frame(condensed_table)
 condensed_table = cbind(SampleIDs,condensed_table)
+condensed_table = t(condensed_table) %>% as.data.frame(.)
+condensed_table = cbind(rownames(condensed_table),condensed_table)
 
-
-
-write_tsv(condensed_table,opt$output)
+write_tsv(condensed_table,opt$output,col_names = FALSE)

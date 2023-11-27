@@ -3,7 +3,7 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-
+suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="R1 object from denoise procedure", metavar="R1 object from denoise procedure"),
@@ -36,12 +36,11 @@ filtRs = theFiles
 rm(theFiles, dadaDenoised)
 
 print("Samples merging to begin…")
+tic()
 mergers = mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+toc()
 print("Sample merging completed.")
 seqtab = makeSequenceTable(mergers)
-seqtab = as.data.frame(cbind(rownames(seqtab),seqtab))
 
-seqtab2 = seqtab %>% pivot_longer(cols = -c(V1), names_to = "sequence", values_to = "abundance")
-
-write_tsv(seqtab2,file=paste0(dirname(inputFolder),"/seqtab.tsv"),col_names=FALSE)
+write_tsv(as.data.frame(cbind(rownames(seqtab),seqtab)),file=paste0(dirname(inputFolder),"/seqtab.tsv"),col_names=TRUE)
 

@@ -293,8 +293,7 @@ rule dada2_5_ChimeraDetectAndRemove:
     message: "DADA2 - Combining the results from the different runs, then removing chimeras through a de novo process. region: {wildcards.region}"
     shell:
         """
-        cat {input} > ./data/favabean/{wildcards.region}_seqtab.txt && 
-        Rscript --vanilla workflow/scripts/dada2_5chimera.R -i ./data/favabean/{wildcards.region}_seqtab.txt -c {threads} -o {output} >> {log} 2>&1
+        Rscript --vanilla workflow/scripts/dada2_5chimera.R -i ./data/favabean/ -p {wildcards.region} -c {threads} -o {output} >> {log} 2>&1
         """
 
 
@@ -342,21 +341,24 @@ rule dada2_7_assignTaxonomy:
         ref =ancient("data/resources/{db}_ref.fa.gz"),
         spec=ancient("data/resources/{db}_species.fa.gz")
     output:
-        taxonomy="data/favabean/{region}_{db}_taxonomy.tsv"
+        OTU_table="data/favabean/{region}_{db}_OTU.tsv",
+        taxonomy ="data/favabean/{region}_{db}_taxonomy.tsv"
     log:
         "data/logs/dada2-{region}-{db}_taxonomy.log"
     conda:
         "../envs/dada2.yaml"
     threads:
         determine_threads
+    message: "DADA2 - Assigning taxonomy to ASVs. region: {wildcards.region} using {wildcards.db} database."
     shell:
         """
         Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
             -i {input.ASVs} \
-            -o {output.taxonomy} \
+            -o {output.OTU_table} \
+            -t {output.taxonomy} \
             -d {input.ref} \
             -s {input.spec} \
-            > {log} 2>&1
+            -c {threads} > {log} 2>&1
         """
 
 rule paired_taxonomy:
@@ -367,16 +369,3 @@ rule paired:
     input:
         expand("data/favabean/{region}_condense.tsv",region=[combo[1] for combo in combinations])
 
-rule average:
-    output:
-        touch(temporary("data/favabean/.condensed_taxonomy.done"))
-    log:
-        "data/logs/condensed_taxonomy.log"
-    conda:
-        "../envs/dada2.yaml"
-    params:
-        db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)]
-    shell:
-        """
-        Rscript --vanilla workflow/scripts/primer_average.R -d {params.db} >> {log} 2>&1
-        """
