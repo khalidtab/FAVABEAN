@@ -1,0 +1,42 @@
+# Write the name of the biom file that you want to generate, without the extension
+finalFile:
+     - final_file
+
+# cutadapt can initially filter sequences below a certain length out when a sequence is not expected to be meaningful
+# These sequences will be written on disk but won't be used for downstream analyses
+initial_filter:
+     - 200
+
+# Figaro expects all sequences to be of the same length, so cutting all sequences to a specific length is needed.
+# This simplifies the Figaro analyses, and it helps remove sequences not expected to give you a meaningful hit to DADA2
+# You can write a specific number you like (eg 100, for 100 basepairs), or, you can filter out sequences based on general parameters as below
+# Default: is that if the length of sequences in Q1 is within 10% of Q2 (median), then use the Q1 to include the majority of sequences. Otherwise Q2 is used
+# Q1: 25th percentile length
+# Q2: 50th percentile length (median) 
+# Q3: 75th percentile length
+# max_len: longest sequence length
+# This only accepts one value only. So if you have more than 1 uncommented, only the first one will be used0
+trim_param:
+     - default
+#    - max_len
+#    - Q1
+#    - Q2
+#    - Q3
+#    - 100
+
+# Figaro provides multiple options for the DADA2 parameters such highest coverage (retained % of sequences)
+# Below you can mention which of these you want to proceed
+# This only accepts one value only. So if you have more than 1 uncommented, only the first one will be used0
+figaro:
+    - highest_coverage
+#    - lowest_errors
+
+taxonomy_database:
+  eHOMD:
+    use: True
+    url: "https://zenodo.org/records/7380292/files/eHOMD_RefSeq_dada2_V15.22.fasta.gz"
+    species: "https://zenodo.org/records/7380292/files/eHOMD_RefSeq_dada2_assign_species_V15.22.fasta.gz"
+  silva:
+    use: False
+    url: "https://zenodo.org/records/4587955/files/silva_nr99_v138.1_wSpecies_train_set.fa.gz"
+    species: "https://zenodo.org/records/4587955/files/silva_species_assignment_v138.1.fa.gz"
