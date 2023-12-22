@@ -1,1 +1,2 @@
-include: "rules/cutadapt.smk"
+configfile: "data/input.yaml"
+include: "rules/step1.smk"

@@ -1,5 +1,0 @@
-name: seqtk
-channels:
-    - bioconda
-dependencies:
-    - seqtk

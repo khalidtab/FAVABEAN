@@ -24,39 +24,17 @@ rule cutadapt:
    shell:
       "touch {output}"
 
-rule bbmap:
+rule seqkit:
    conda:
-      "./workflow/envs/bbmap.yaml"
-   message: "Creating bbmap"
+      "./workflow/envs/seqkit.yaml"
+   message: "Creating seqkit"
    input:
       "{sample}"
    output:
-      temporary(touch("{sample}bbmap"))
+      temporary(touch("{sample}seqkit"))
    shell:
       "touch {output}"
 
-rule seqtk:
-   conda:
-      "./workflow/envs/seqtk.yaml"
-   message: "Creating seqtk"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}seqtk"))
-   shell:
-      "touch {output}"
-
-
-rule pigz:
-   conda:
-      "./workflow/envs/pigz.yaml"
-   message: "Creating pigz"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}pigz"))
-   shell:
-      "touch {output}"
 
 rule dada2:
    conda:
@@ -74,9 +52,7 @@ rule results:
    input:
       rules.figaro.output,
       rules.cutadapt.output,
-      rules.bbmap.output,
-      rules.seqtk.output,
-      rules.pigz.output,
+      rules.seqkit.output,
       rules.dada2.output
    message: "Cleaning up…"
    output:
