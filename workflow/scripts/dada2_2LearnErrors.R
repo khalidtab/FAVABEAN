@@ -2,7 +2,6 @@
 
 suppressMessages(library("optparse"))
 suppressMessages(library("dada2"))
-suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="Folder with the trimmed and filtered FASTQ files from DADA2", metavar="Folder with the trimmed and filtered FASTQ files from DADA2"),
@@ -28,9 +27,9 @@ print("DADA2 Filtered and trimmed fastq files found")
 print(theFiles)
 
 print(paste("Will now run DADA2 Error learning. Number of cores to be utilized:",cores))
-tic()
+
 DADA2errors = learnErrors(theFiles, randomize=TRUE, multithread = cores, verbose = 1)
-toc()
+
 print("DADA2 Errors learned")
 
 rm(cores,opt)
