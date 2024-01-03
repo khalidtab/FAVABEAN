@@ -3,7 +3,6 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="R1 object from denoise procedure", metavar="R1 object from denoise procedure"),
@@ -36,9 +35,9 @@ filtRs = theFiles
 rm(theFiles, dadaDenoised)
 
 print("Samples merging to begin…")
-tic()
+
 mergers = mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
-toc()
+
 print("Sample merging completed.")
 seqtab = makeSequenceTable(mergers)
 

@@ -3,7 +3,6 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="input file after chimera removal", metavar="input file after chimera removal"),
@@ -26,10 +25,10 @@ cores = opt$cores
 
 load(inputFile)
 
-tic()
+
 print("starting collapse of ASVs…")
 condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
-toc()
+
 SampleIDs = rownames(condensed_table)
 condensed_table = as.data.frame(condensed_table)
 condensed_table = cbind(SampleIDs,condensed_table)

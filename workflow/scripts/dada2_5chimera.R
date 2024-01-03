@@ -3,7 +3,6 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-suppressMessages(library("tictoc"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="input folder with the seqtab files to be combined", metavar="input folder with the seqtab files to be combined"),
@@ -43,16 +42,16 @@ process_file <- function(path) {
 
 inputfiles2 = base::sapply(inputfiles2, process_file,simplify=TRUE)
 print("Merging sequence tables…")
-tic()
+
 inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
-toc()
+
 print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
 
 inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
 print("Done table format modification. Will start chimera identification and removal")
-tic()
+
 seqtab_noChim =  removeBimeraDenovo(inputfiles3, multithread =  TRUE, verbose=TRUE, method = "pooled")
-toc()
+
 print("Chimeras removed")
 
 inputfile4 = inputfiles2 %>% .[,colnames(.) %in% seqtab_noChim$sequence]

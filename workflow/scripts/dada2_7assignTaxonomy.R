@@ -3,7 +3,6 @@ suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
-suppressMessages(library("tictoc"))
 
 
 option_list = list(
@@ -35,15 +34,15 @@ taxonomyOutput = opt$taxonomy
 inputMatrix = read_tsv(inputFile) %>% as.data.frame(.)
 ASVs = inputMatrix$SampleIDs
 
-tic()
+
 print("Beginning assignment up to genus level.")
 taxa3 = dada2::assignTaxonomy(ASVs, myDatabase,verbose=TRUE, tryRC = TRUE, multithread = FALSE)
-toc()
+
 print("Taxonomy assignment up to genus level is completed.")
-tic()
+
 print("Beginning assignment up to species level.")
 taxa4 = dada2::assignSpecies(taxa3,mySpecies,tryRC = TRUE)
-toc()
+
 print("Taxonomy assignment up to species level is completed.")
 
 taxa3 = cbind(rownames(taxa3),taxa3) %>% as.data.frame(.)
