@@ -1,4 +1,4 @@
-FROM snakemake/snakemake:stable
+FROM snakemake/snakemake:v7.32.4
 
 WORKDIR ../../
 
