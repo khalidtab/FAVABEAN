@@ -67,7 +67,7 @@ rule cutadapt:
         primer_5 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_5'],
         primer_3 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_3'],
         sampleNum =     lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'SampleNum'],
-        filt=config["initial_filter"]
+        filt      =     config["initial_filter"]
     message: "Cutadapt - Removing the adaptors for sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/cutadapt.yaml"
@@ -83,75 +83,115 @@ rule cutadapt:
         {input.fq1} {input.fq2} > {log} 2>&1 
         """
 
-
-
-
-
-rule seqkitR1:
+rule sequence_length_stats:
     input:
         lambda wildcards: expand("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done",
                                  batch=wildcards.batch,
                                  region=wildcards.region,
                                  sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
     output:
-        R1done=touch("data/favabean/{batch}-{region}/.tmp/.trim_R1.done")
-    log:
-        R1="data/logs/seqkit_BBMAP-{batch}-{region}R1.log"
+        R1="data/favabean/{batch}-{region}/.trimParamR1.txt",
+        R2="data/favabean/{batch}-{region}/.trimParamR2.txt"
     params:
         filt=config["initial_filter"],
-        trim=config["trim_param"],
-        R1="R1"
-    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R1 from batch: {wildcards.batch}, region: {wildcards.region}"
+        trim_param=config["trim_param"]
+    message: "SeqKit - Calculate descriptive statistics of the R1 and R2 sequence lengths for the samples: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/seqkit.yaml"
     shell:
         """
-        # R1
-        # If its a number, this will be placed here. If it is not, it will be rewritten in one of the codes below
-        echo {params.trim} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.{params.R1}{params.trim}.txt
-        cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*{params.R1}_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_{params.R1}_lengths.txt -T -a && 
-        values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_{params.R1}_lengths.txt | cut -f7-11)
-        echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}max_len.txt
-        echo $values | cut -d' ' -f3 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q1.txt
-        echo $values | cut -d' ' -f4 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q2.txt
-        echo $values | cut -d' ' -f5 > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q3.txt
-        
-        x_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q1.txt))
-        y_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q2.txt))
-        ten_percent=$((y_int / 10))
-        lower_bound=$((y_int - ten_percent))
-        upper_bound=$((y_int + ten_percent))
-        if [ "$x_int" -ge "$lower_bound" ] && [ "$x_int" -le "$upper_bound" ]; then
-            echo $x_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}default.txt
-        else
-            echo $y_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}default.txt
-        fi
-        
-        trim_file=$(cat "/data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}{params.trim}.txt")
-        
-        ls /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*{params.R1}*.fastq | parallel "mkdir -p {{//}}/trim/ && bbduk.sh in={{}} minlength=$trim_file maxlength=$trim_file nullifybrokenquality out=stdout.fq 2>> {log.R1} | seqkit seq --remove-gaps -m $trim_file -M $trim_file > {{//}}/trim/{{/}}"
-        rm -f /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}{params.trim}.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}max_len.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q1.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q2.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.{params.R1}Q3.txt
+            #R1
+            echo {params.trim_param} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.R1{params.trim_param}.txt
+            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R1_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R1_lengths.txt -T -a
+            
+            values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_R1_lengths.txt | cut -f7-11)
+            echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_max_len.txt
+            echo $values | cut -d' ' -f3 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_Q1.txt
+            echo $values | cut -d' ' -f4 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_Q2.txt
+            echo $values | cut -d' ' -f5 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_Q3.txt
+            
+            # Additional processing to determine default value
+            x_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_Q1.txt))
+            y_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_Q2.txt))
+            ten_percent=$((y_int / 10))
+            lower_bound=$((y_int - ten_percent))
+            upper_bound=$((y_int + ten_percent))
+            if [ "$x_int" -ge "$lower_bound" ] && [ "$x_int" -le "$upper_bound" ]; then
+                echo $x_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_default.txt
+            else
+                echo $y_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_default.txt
+            fi
+            cp /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_{params.trim_param}.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.trimParamR1.txt
+            
+            #R2
+            echo {params.trim_param} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.R2_{params.trim_param}.txt
+            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R2_lengths.txt -T -a
+            
+            values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_R2_lengths.txt | cut -f7-11)
+            echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_max_len.txt
+            echo $values | cut -d' ' -f3 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_Q1.txt
+            echo $values | cut -d' ' -f4 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_Q2.txt
+            echo $values | cut -d' ' -f5 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_Q3.txt
+            
+            # Additional processing to determine default value
+            x_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_Q1.txt))
+            y_int=$(printf "%.0f\n" $(cat /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_Q2.txt))
+            ten_percent=$((y_int / 10))
+            lower_bound=$((y_int - ten_percent))
+            upper_bound=$((y_int + ten_percent))
+            if [ "$x_int" -ge "$lower_bound" ] && [ "$x_int" -le "$upper_bound" ]; then
+                echo $x_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_default.txt
+            else
+                echo $y_int > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_default.txt
+            fi
+            cp /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_{params.trim_param}.txt /data/favabean/{wildcards.batch}-{wildcards.region}/.trimParamR2.txt
+
         """
 
-
-
-use rule seqkitR1 as seqkitR2 with:
+rule cutAndKeepSameLengthSequencesForFigaro:
+    input:
+        sampleCutadapt=lambda wildcards: expand("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region,
+                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region)),
+        trimParamR1=lambda wildcards: expand("data/favabean/{batch}-{region}/.trimParamR1.txt",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region),
+        trimParamR2=lambda wildcards: expand("data/favabean/{batch}-{region}/.trimParamR2.txt",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region)
     output:
-        R1done=touch("data/favabean/{batch}-{region}/.tmp/.trim_R2.done")
+        touch("/data/favabean/{batch}-{region}/.{sample}_seqkit.done")
     log:
-        R1="data/logs/seqkit_BBMAP-{batch}-{region}R2.log"
+        "data/logs/seqkit-{batch}-{region}-{sample}.log"
+    message: "SeqKit - Filtering Sample: {wildcards.sample} FASTQ files based on the chosen length for R1 and R2 from batch: {wildcards.batch}, region: {wildcards.region}"
+    conda:
+        "../envs/seqkit.yaml"
     params:
-        filt=config["initial_filter"],
-        trim=config["trim_param"],
-        R1="R2"
-    message: "SeqKit - Filtering FASTQ files to include only reads with {params.trim} basepairs for R2 from batch: {wildcards.batch}, region: {wildcards.region}"
-
-
+        sampleNum =     lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'SampleNum']
+    shell:
+        """
+        mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample}
+        
+        trimParamR1=$(cat {input.trimParamR1})
+        trimParamR2=$(cat {input.trimParamR2})
+        
+        # Cut sequences longer than the chosen trim parameter length, then remove gaps and any sequences shorter than that, then pair the sequences so that only those that are present in both would be kept
+        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq | seqkit subseq -r 1:$trimParamR1 | seqkit seq --remove-gaps -m $trimParamR1 -M $trimParamR1 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq
+        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq | seqkit subseq -r 1:$trimParamR2 | seqkit seq --remove-gaps -m $trimParamR2 -M $trimParamR2 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq
+        seqkit pair -1 /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq -2 /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq -O /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample} --force > {log} 2>&1
+        # I think what seqkit pair kept on rewriting the whole folder at every execution, hence why I have each sample write their result in a separate folder. Now let's move its contents output
+        mv /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample}/* /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/
+        rm -r /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample}/
+        rm /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq
+        """
 
 rule figaro:
     input:
-        "data/favabean/{batch}-{region}/.tmp/.trim_R1.done",
-        "data/favabean/{batch}-{region}/.tmp/.trim_R2.done"
+        lambda wildcards: expand("/data/favabean/{batch}-{region}/.{sample}_seqkit.done",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region,
+                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
     output:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
     log:
@@ -163,13 +203,14 @@ rule figaro:
         determine_threads
     shell:
         """
-         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/trim -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina >> {log}
-         # Do some clean up of files
-         rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/trim
+         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina >> {log}
+         # Do some clean up of files that were solely used for figaro parameters generation
+         rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro
         """
 
 
-# Note that this uses the cutadapt files, and not the figaro ones!
+# Note that this uses the cutadapt files, and not the figaro ones! Need to change it so that it can do that for each pair of sequences separately instead of per batch
+# Use this as your input: touch("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done")
 rule dada2_1_filterTrim:
     input:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
@@ -201,7 +242,7 @@ rule dada2_2_learnErrors_R1:
     params:
         R="R1"
     threads:
-        determine_threads
+        all_threads
     message: "DADA2 - Learning errors for R1. batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """

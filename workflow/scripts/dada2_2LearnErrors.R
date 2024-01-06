@@ -28,7 +28,7 @@ print(theFiles)
 
 print(paste("Will now run DADA2 Error learning. Number of cores to be utilized:",cores))
 
-DADA2errors = learnErrors(theFiles, randomize=TRUE, multithread = cores, verbose = 1)
+DADA2errors = learnErrors(theFiles, randomize=TRUE, multithread = cores, verbose = 2)
 
 print("DADA2 Errors learned")
 
