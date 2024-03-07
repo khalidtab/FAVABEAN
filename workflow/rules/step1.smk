@@ -73,9 +73,11 @@ rule cutadapt:
         "../envs/cutadapt.yaml"
     shell:
         """
+        primer5=$(echo '{params.primer_5}' | sed 's/;/ -g /g')
+        primer3=$(echo '{params.primer_3}' | sed 's/;/ -G /g')
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/ &&
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/ &&
-        cutadapt -j 0 --minimum-length {params.filt} -g {params.primer_5} -G {params.primer_3} \
+        cutadapt -j 0 --minimum-length {params.filt} -g $primer5 -G $primer3 \
         --too-short-output        /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
         --too-short-paired-output /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq \
         -o /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
