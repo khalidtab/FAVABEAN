@@ -40,8 +40,7 @@ samples_table["SampleNum"] = samples_table["fastq1"].apply(lambda x: extractor.g
 def determine_threads(wildcards):
     total_cores = workflow.cores
     core_multiplier = workflow.attempt
-    return total_cores/2
-    #    return min(2 * core_multiplier, total_cores)
+    return min(2 * core_multiplier, total_cores)
     # This sets a base of 2 threads per job and adjusts based on the attempt number.
     # Adjust this logic as needed for your specific use-case.
 
@@ -73,11 +72,9 @@ rule cutadapt:
         "../envs/cutadapt.yaml"
     shell:
         """
-        primer5=$(echo '{params.primer_5}' | sed 's/;/ -g /g')
-        primer3=$(echo '{params.primer_3}' | sed 's/;/ -G /g')
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/ &&
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/ &&
-        cutadapt -j 0 --minimum-length {params.filt} -g $primer5 -G $primer3 \
+        cutadapt -j 0 --minimum-length {params.filt} -g {params.primer_5} -G {params.primer_3} \
         --too-short-output        /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
         --too-short-paired-output /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq \
         -o /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
@@ -268,42 +265,50 @@ use rule dada2_2_learnErrors_R1 as dada2_2_learnErrors_R2 with:
 
 rule dada2_3_denoise_R1:
     input:
-        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R1.RData"
+        dada2error=ancient("data/favabean/{batch}-{region}/dada2_DADA2Errors-R1.RData"),
+        sampleID="/data/favabean/{batch}-{region}/.{sample}_seqkit.done"
     output:
-        "data/favabean/{batch}-{region}/dada2_DADA2Denoise-R1.RData"
+        "data/favabean/{batch}-{region}/dada2_{sample}_DADA2Denoise-R1.RData"
     log:
-        "data/logs/dada2-3denoise-{batch}-{region}-R1.log"
+        "data/logs/dada2-3denoise-{batch}-{region}-{sample}-R1.log"
     conda:
         "../envs/dada2.yaml"
     params:
         R="R1"
-    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. sample: {wildcards.sample}, batch: {wildcards.batch}, region: {wildcards.region}. Number of threads: {threads}"
     threads:
-        determine_threads
+        all_threads
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input} -c {threads} -r {params.R} >> {log} 2>&1
+         Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input.dada2error} -s {input.sampleID} -c {threads} -r {params.R} >> {log} 2>&1
         """
 
 use rule dada2_3_denoise_R1 as dada2_3_denoise_R2 with:
     input:
-        "data/favabean/{batch}-{region}/dada2_DADA2Errors-R2.RData"
+        dada2error=ancient("data/favabean/{batch}-{region}/dada2_DADA2Errors-R2.RData"),
+        sampleID="/data/favabean/{batch}-{region}/.{sample}_seqkit.done"
     output:
-        "data/favabean/{batch}-{region}/dada2_DADA2Denoise-R2.RData"
+        "data/favabean/{batch}-{region}/dada2_{sample}_DADA2Denoise-R2.RData"
     log:
-        "data/logs/dada2-3denoise-{batch}-{region}-R2.log"
+        "data/logs/dada2-3denoise-{batch}-{region}-{sample}-R2.log"
     conda:
         "../envs/dada2.yaml"
     threads:
-        determine_threads
+        all_threads
     params:
         R="R2"
-    message: "DADA2 - Denoising amplicons based on the learned errors for R2 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "DADA2 - Denoising amplicons based on the learned errors for R2 to create ASVs. sample: {wildcards.sample}, batch: {wildcards.batch}, region: {wildcards.region}. Number of threads: {threads}"
 
 rule dada2_4_mergePairedEnds:
-    input:
-        R1="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R1.RData",
-        R2="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R2.RData"
+    input:    
+        R1=lambda wildcards: expand("data/favabean/{batch}-{region}/dada2_{sample}_DADA2Denoise-R1.RData",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region,
+                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region)),
+        R2=lambda wildcards: expand("data/favabean/{batch}-{region}/dada2_{sample}_DADA2Denoise-R2.RData",
+                                 batch=wildcards.batch,
+                                 region=wildcards.region,
+                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
     output:
         "data/favabean/{batch}-{region}/seqtab.tsv"
     log:
@@ -313,8 +318,7 @@ rule dada2_4_mergePairedEnds:
     message: "DADA2 - Merging ASV paired ends (R1, R2). batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
-         Rscript --vanilla workflow/scripts/dada2_4mergeR1R2.R -i {input.R1} -s {input.R2} >> {log} 2>&1
-         rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/.tmp
+         Rscript --vanilla workflow/scripts/dada2_4mergeR1R2.R -i data/favabean/{wildcards.batch}-{wildcards.region}/ -f data/favabean/{wildcards.batch}-{wildcards.region}/dada2/filtered >> {log} 2>&1
         """
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
@@ -349,8 +353,6 @@ rule dada2_6_condense:
         "data/logs/dada2-condenseASVs-{region}.log"
     conda:
         "../envs/dada2.yaml"
-    threads:
-        determine_threads
     message: "DADA2 - Condensing ASVs. region: {wildcards.region}"
     shell:
         """
@@ -391,7 +393,7 @@ rule dada2_7_assignTaxonomy:
     conda:
         "../envs/dada2.yaml"
     threads:
-        determine_threads
+        all_threads
     message: "DADA2 - Assigning taxonomy to ASVs. region: {wildcards.region} using {wildcards.db} database."
     shell:
         """
