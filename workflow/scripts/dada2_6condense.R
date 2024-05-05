@@ -27,7 +27,7 @@ load(inputFile)
 
 
 print("starting collapse of ASVs…")
-condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
+condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, identicalOnly = FALSE, band = -1, verbose = TRUE)
 
 SampleIDs = rownames(condensed_table)
 condensed_table = as.data.frame(condensed_table)

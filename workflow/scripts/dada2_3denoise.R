@@ -23,7 +23,7 @@ rDirection = opt$rdirection
 
 # Denoising the sequences
 
-dadaDenoised = dada(theFiles, err=DADA2errors, multithread=cores, pool=TRUE, verbose=2)
+dadaDenoised = dada(theFiles, err=DADA2errors, multithread=cores, pool="pseudo", verbose=2)
 
 print("Done with denoising. Will write file now…")
 rm(opt,cores)

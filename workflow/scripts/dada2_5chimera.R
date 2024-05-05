@@ -30,8 +30,7 @@ inputfiles = list.files(inputfile,pattern = "seqtab", full.names = TRUE, recursi
 inputfiles2 = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.]
 
 process_file <- function(path) {
-  newTable <- read_tsv(path) %>% 
-    as.data.frame() 
+  newTable = data.table::fread(path) %>% as.data.frame() # This is a faster way to read the files than read_tsv()
   
   rownames(newTable) <- newTable[, 1]
   newTable[, 1] <- NULL
@@ -40,20 +39,20 @@ process_file <- function(path) {
   return(newTable)
 }
 
-inputfiles2 = base::sapply(inputfiles2, process_file,simplify=TRUE)
-print("Merging sequence tables…")
-
-inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
+inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.)
 
 print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
 
-inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
-print("Done table format modification. Will start chimera identification and removal")
+#inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
+#print("Done table format modification. Will start chimera identification and removal")
 
-seqtab_noChim =  removeBimeraDenovo(inputfiles3, multithread =  TRUE, verbose=TRUE, method = "pooled")
+seqtab_noChim =  isBimeraDenovoTable(inputfiles2, multithread =  TRUE, verbose=TRUE) %>% as.data.frame(.)
+seqtab_noChim = cbind(rownames(seqtab_noChim),seqtab_noChim)
+colnames(seqtab_noChim) = c("sequence","TorF")
+seqtab_noChim = seqtab_noChim %>% .[which(.$TorF == TRUE),]
 
 print("Chimeras removed")
 
-inputfile4 = inputfiles2 %>% .[,colnames(.) %in% seqtab_noChim$sequence]
+inputfile4 = inputfiles2 %>% .[,-which(colnames(.) %in% seqtab_noChim$sequence)]
 
 save(inputfile4, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)
