@@ -31,8 +31,7 @@ forwardfiles = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.] %>% grepl
 pairedfiles = inputfiles[-which(inputfiles %in% forwardfiles)]
 
 process_file <- function(path) {
-  newTable <- read_tsv(path) %>% 
-    as.data.frame() 
+  newTable = data.table::fread(path) %>% as.data.frame() # This is a faster way to read the files than read_tsv()
   
   rownames(newTable) <- newTable[, 1]
   newTable[, 1] <- NULL
