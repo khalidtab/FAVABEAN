@@ -1,12 +1,6 @@
 channels:
   - bioconda
   - conda-forge
-  - r
-  - cctbx202211
-  - fastchan
-  - default
-  - anaconda
 dependencies:
-  - r-base=4.3
   - r-biocmanager
   - bioconductor-dada2
