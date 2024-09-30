@@ -83,10 +83,10 @@ rule cutadapt:
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/ &&
         mkdir -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/ &&
         cutadapt -j 0 --minimum-length {params.filt} -g $primer5 -G $primer3 \
-        --too-short-output        /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
-        --too-short-paired-output /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq \
-        -o /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq \
-        -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq \
+        --too-short-output        /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq.gz \
+        --too-short-paired-output /data/favabean/{wildcards.batch}-{wildcards.region}/initialFilt_discarded/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq.gz \
+        -o /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq.gz \
+        -p /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq.gz \
         {input.fq1} {input.fq2} > {log} 2>&1 
         """
 
@@ -109,7 +109,7 @@ rule sequence_length_stats:
         """
             #R1
             echo {params.trim_param} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.R1{params.trim_param}.txt
-            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R1_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R1_lengths.txt -T -a
+            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R1_001.fastq.gz | gzip -d | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R1_lengths.txt -T -a
             
             values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_R1_lengths.txt | cut -f7-11)
             echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R1_max_len.txt
@@ -132,7 +132,7 @@ rule sequence_length_stats:
             
             #R2
             echo {params.trim_param} > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/.R2_{params.trim_param}.txt
-            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R2_lengths.txt -T -a
+            cat data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/*R2_001.fastq.gz | gzip -d | seqkit stats > data/favabean/{wildcards.batch}-{wildcards.region}/stats_R2_lengths.txt -T -a
             
             values=$(tail -n 1 data/favabean/{wildcards.batch}-{wildcards.region}/stats_R2_lengths.txt | cut -f7-11)
             echo $values | cut -d' ' -f2 > /data/favabean/{wildcards.batch}-{wildcards.region}/.R2_max_len.txt
@@ -184,8 +184,8 @@ rule cutAndKeepSameLengthSequencesForFigaro:
         trimParamR2=$(cat {input.trimParamR2})
         
         # Cut sequences longer than the chosen trim parameter length, then remove gaps and any sequences shorter than that, then pair the sequences so that only those that are present in both would be kept
-        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq | seqkit subseq -r 1:$trimParamR1 | seqkit seq --remove-gaps -m $trimParamR1 -M $trimParamR1 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq
-        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq | seqkit subseq -r 1:$trimParamR2 | seqkit seq --remove-gaps -m $trimParamR2 -M $trimParamR2 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq
+        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_001.fastq.gz | gzip -d | seqkit subseq -r 1:$trimParamR1 | seqkit seq --remove-gaps -m $trimParamR1 -M $trimParamR1 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq
+        cat /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_001.fastq.gz | gzip -d | seqkit subseq -r 1:$trimParamR2 | seqkit seq --remove-gaps -m $trimParamR2 -M $trimParamR2 > /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq
         seqkit pair -1 /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq -2 /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq -O /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample} --force > {log} 2>&1
         # I think what seqkit pair kept on rewriting the whole folder at every execution, hence why I have each sample write their result in a separate folder. Now let's move its contents output
         mv /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample}/* /data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/
