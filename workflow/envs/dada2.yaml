@@ -7,6 +7,6 @@ channels:
   - default
   - anaconda
 dependencies:
-  - r-base
+  - r-base=4.3
   - r-biocmanager
   - bioconductor-dada2
