@@ -27,10 +27,10 @@ load(inputFile)
 
 
 print("starting collapse of ASVs…")
-condensed_table_forward = collapseNoMismatch(forwardfiles, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
+condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
 
-SampleIDs = rownames(condensed_table_forward)
-condensed_table = as.data.frame(condensed_table_forward)
+SampleIDs = rownames(condensed_table)
+condensed_table = as.data.frame(condensed_table)
 condensed_table = cbind(SampleIDs,condensed_table)
 condensed_table = t(condensed_table) %>% as.data.frame(.)
 condensed_table = cbind(rownames(condensed_table),condensed_table)

@@ -27,8 +27,7 @@ inputfile = opt$input
 myparameter = opt$parameter
 
 inputfiles = list.files(inputfile,pattern = "seqtab", full.names = TRUE, recursive = TRUE)
-forwardfiles = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.] %>% grepl("seqtab_forwardOnly",x=.)  %>% inputfiles[.]
-pairedfiles = inputfiles[-which(inputfiles %in% forwardfiles)]
+inputfiles2 = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.]
 
 process_file <- function(path) {
   newTable = data.table::fread(path) %>% as.data.frame() # This is a faster way to read the files than read_tsv()
@@ -40,14 +39,20 @@ process_file <- function(path) {
   return(newTable)
 }
 
-forwardfiles = base::sapply(forwardfiles, process_file,simplify=TRUE)
-pairedfiles  = base::sapply(pairedfiles , process_file,simplify=TRUE)
+inputfiles2 = base::sapply(inputfiles2, process_file,simplify=TRUE)
+print("Merging sequence tables…")
 
-print("Merging sequence tables, then performing chimera removal")
+inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
 
-forwardfiles = forwardfiles %>% mergeSequenceTables(tables=.,tryRC = TRUE) %>% removeBimeraDenovo(., multithread =  TRUE, verbose=TRUE, method = "pooled")
-pairedfiles  = pairedfiles  %>% try(mergeSequenceTables(tables=.,tryRC = TRUE),silent=FALSE) %>% try(removeBimeraDenovo(., multithread =  TRUE, verbose=TRUE, method = "pooled"))
+print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
+
+inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
+print("Done table format modification. Will start chimera identification and removal")
+
+seqtab_noChim =  removeBimeraDenovo(inputfiles3, multithread =  TRUE, verbose=TRUE, method = "pooled")
 
 print("Chimeras removed")
 
-save(forwardfiles, pairedfiles, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)
+inputfile4 = inputfiles2 %>% .[,colnames(.) %in% seqtab_noChim$sequence]
+
+save(inputfile4, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)
