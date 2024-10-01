@@ -8,11 +8,4 @@ channels:
   - anaconda
 dependencies:
   - r-biocmanager
-  - r-readr
-  - r-magrittr
-  - r-optparse
-  - r-tidyr
-  - r-jsonlite
-  - r-furrr
-  - r-future
-
+  - bioconductor-dada2

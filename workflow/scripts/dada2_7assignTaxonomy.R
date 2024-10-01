@@ -4,6 +4,7 @@ suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dada2"))
 
+
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="input file after ASV condensation", metavar="input file after ASV condensation"),
   make_option(c("-d", "--database"), type="character", default=NULL, help="input database to use for taxonomy assignemnt", metavar="input database"),
@@ -64,4 +65,3 @@ inputMatrix3 = inputMatrix3 %>% .[,-which(colnames(.) %in% c("SampleIDs","taxono
 
 write_tsv(inputMatrix3,myOutput)
 write_tsv(taxonomy,taxonomyOutput)
-
