@@ -35,4 +35,3 @@ print("DADA2 Errors learned")
 rm(cores,opt)
 
 save(DADA2errors, inputFolder, theFiles, file = paste0(inputFolder,"_DADA2Errors-",rDirection,".RData"), envir = .GlobalEnv)
-

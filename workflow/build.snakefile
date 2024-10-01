@@ -48,7 +48,6 @@ rule dada2:
       "touch {output}"
 
 rule results:
-   version: "1.0"
    input:
       rules.figaro.output,
       rules.cutadapt.output,

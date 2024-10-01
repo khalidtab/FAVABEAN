@@ -416,4 +416,3 @@ rule paired_taxonomy:
 rule paired:
     input:
         expand("data/favabean/{region}_condense.tsv",region=[combo[1] for combo in combinations])
-

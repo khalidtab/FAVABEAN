@@ -65,4 +65,3 @@ inputMatrix3 = inputMatrix3 %>% .[,-which(colnames(.) %in% c("SampleIDs","taxono
 
 write_tsv(inputMatrix3,myOutput)
 write_tsv(taxonomy,taxonomyOutput)
-
