@@ -8,3 +8,4 @@ channels:
   - anaconda
 dependencies:
   - r-biocmanager
+  - r-devtools
