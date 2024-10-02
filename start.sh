@@ -1,23 +1,19 @@
 #!/bin/bash
 
+echo "Welcome to FAVABEAN!"
+echo ""
+echo ""
+echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and input.yaml)'"
 # Step 1: Copy files as needed (if applicable)
-cp /path/to/source /path/to/destination
+cp -p environments.txt data/
+cp -p files_info.csv data/
+cp -p input.yaml data/
 
-# Step 2: Display the Snakemake command but don't execute it
-echo "The following command is ready for execution:"
+echo ""
+echo ""
+echo "The following command(s) can be executed:"
 echo "snakemake paired_taxonomy --use-conda --cores all --keep-going --retries 5 --rerun-incomplete"
+echo "Please copy and paste the above command or type your own command below."
 
-# Step 3: Prompt the user to press enter to pre-fill the command
-echo "Press Enter to execute the Snakemake command or type your own command below:"
-read -e -p "snakemake paired_taxonomy --use-conda --cores all --keep-going --retries 5 --rerun-incomplete" user_input
-
-# If the user presses enter without typing anything, execute the default command
-if [ -z "$user_input" ]; then
-    snakemake paired_taxonomy --use-conda --cores all --keep-going --retries 5 --rerun-incomplete
-else
-    # Execute the user-specified command
-    $user_input
-fi
-
-# Step 4: Start bash for further interaction (optional, if you want to keep the shell open)
+# Open an interactive bash shell so the user can input commands
 exec bash
