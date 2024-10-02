@@ -47,12 +47,25 @@ rule dada2:
    shell:
       "touch {output}"
 
+rule biom:
+   conda:
+      "./workflow/envs/biom.yaml"
+   message: "Creating biom"
+   input:
+      "{sample}"
+   output:
+      temporary(touch("{sample}biom"))
+   shell:
+      "touch {output}"
+
+
 rule results:
    input:
       rules.figaro.output,
       rules.cutadapt.output,
       rules.seqkit.output,
-      rules.dada2.output
+      rules.dada2.output,
+      rules.biom.output
    message: "Cleaning up…"
    output:
       "{sample}.final"
