@@ -1,5 +1,7 @@
 #!usr/bin/env Rscript
 
+# Set a CRAN mirror to download packages from
+options(repos = c(CRAN = "https://cloud.r-project.org"))
 
 # Install core packages without updating other packages
 BiocManager::install("optparse", ask=FALSE, force=TRUE, update=FALSE)
