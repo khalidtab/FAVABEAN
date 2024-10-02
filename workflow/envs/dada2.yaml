@@ -9,3 +9,4 @@ channels:
 dependencies:
   - r-biocmanager
   - r-devtools
+  - bioconductor-dada2
