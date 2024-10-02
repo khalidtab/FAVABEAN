@@ -2,6 +2,7 @@ suppressMessages(library("optparse"))
 suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
+suppressMessages(library("dplyr"))
 suppressMessages(library("dada2"))
 
 option_list = list(
@@ -25,9 +26,24 @@ cores = opt$cores
 
 load(inputFile)
 
+seqtab_noChim = as.data.frame(seqtab_noChim)
+
+mapping = read.csv("data/files_info_Batches.csv")
+mapping$theFiles = paste0(mapping$sample,"_S",mapping$SampleNum,"_L001_filt_S1_L001_R1_001.fastq.gz")
+mapping2 = data.frame(thefiles = mapping$theFiles, alias = mapping$alias)
+
+seqtab_noChim2 = cbind(rownames(seqtab_noChim),seqtab_noChim)
+colnames(seqtab_noChim2)[1] = "thefiles"
+
+seqtab_noChim3 = dplyr::left_join(seqtab_noChim2,mapping2)
+seqtab_noChim3$thefiles = NULL
+print("Samples sequenced multiple times (if any) will now be merged…")
+seqtab_noChim3 = seqtab_noChim3 %>% group_by(alias) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
+rownames(seqtab_noChim3) = seqtab_noChim3$alias
+seqtab_noChim3$alias = NULL
 
 print("starting collapse of ASVs…")
-condensed_table = collapseNoMismatch(inputfile4, minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
+condensed_table = collapseNoMismatch(as.matrix(seqtab_noChim3), minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
 
 SampleIDs = rownames(condensed_table)
 condensed_table = as.data.frame(condensed_table)

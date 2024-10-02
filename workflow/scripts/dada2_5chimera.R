@@ -46,13 +46,8 @@ inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
 
 print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
 
-inputfiles3 = as.data.frame(inputfiles2) %>% pivot_longer(cols=colnames(.),values_to = "abundance",names_to = "sequence")
-print("Done table format modification. Will start chimera identification and removal")
-
-seqtab_noChim =  removeBimeraDenovo(inputfiles3, multithread =  TRUE, verbose=TRUE, method = "pooled")
+seqtab_noChim =  removeBimeraDenovo(inputfiles2, multithread =  TRUE, verbose=TRUE, method = "consensus")
 
 print("Chimeras removed")
 
-inputfile4 = inputfiles2 %>% .[,colnames(.) %in% seqtab_noChim$sequence]
-
-save(inputfile4, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)
+save(seqtab_noChim, file = paste0("data/favabean/",myparameter,"_chimeraRemoved.RObjects"), envir = .GlobalEnv)

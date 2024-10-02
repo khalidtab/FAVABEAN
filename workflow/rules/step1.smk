@@ -44,8 +44,6 @@ def determine_threads(wildcards):
 
 def all_threads(wildcards):
     return max(1, workflow.cores)
-    # This sets a base of 2 threads per job and adjusts based on the attempt number.
-    # Adjust this logic as needed for your specific use-case.
     
 # Now the samples_table variable has the updated "SampleNum" column and can be used in the rest of your script.
 
