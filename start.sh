@@ -1,6 +1,9 @@
 #!/bin/bash
-
-echo "Welcome to FAVABEAN!"
+echo ""
+echo ""
+echo -e "\033[0;32m====================\033[0m"
+echo -e "\033[0;32mWelcome to FAVABEAN!\033[0m"
+echo -e "\033[0;32m====================\033[0m"
 echo ""
 echo ""
 echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and input.yaml)'"
@@ -11,9 +14,10 @@ cp -p input.yaml data/
 
 echo ""
 echo ""
-echo "The following command(s) can be executed:"
-echo "snakemake paired_taxonomy --use-conda --cores all --keep-going --retries 5 --rerun-incomplete"
-echo "Please copy and paste the above command or type your own command below."
-
+echo "Example command(s):"
+echo -e "\033[0;36msnakemake paired_taxonomy --use-conda --cores all --keep-going --retries 5 --rerun-incomplete\033[0m"
+echo "Please copy and paste the above command(s) or type your own command below."
+echo ""
+echo ""
 # Open an interactive bash shell so the user can input commands
 exec bash
