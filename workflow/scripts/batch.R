@@ -14,10 +14,10 @@ parse_header = function(header) {
   return(paste(parts[1:4], collapse = ":"))
 }
 
-fastq_dir = "/data/" # Directory containing your FASTQ files
+fastq_dir = "data/" # Directory containing your FASTQ files
 fastq_files = list.files(fastq_dir, pattern = "\\.gz$", full.names = TRUE) # Get a list of FASTQ files in gz format
 fastq_files = fastq_files[grep("R1", fastq_files)] # Keep only R1 files
-sample_info = read.csv("/data/files_info.csv")
+sample_info = read.csv("data/files_info.csv")
 
 # Initialize a vector to store parsed headers
 all_headers = data.frame(filename=NA, batchID=NA)
