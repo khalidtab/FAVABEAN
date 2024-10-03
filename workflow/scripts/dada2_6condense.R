@@ -4,6 +4,7 @@ suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dplyr"))
 suppressMessages(library("dada2"))
+suppressMessages(library("inflection"))
 
 option_list = list(
   make_option(c("-i", "--input"), type="character", default=NULL, help="input file after chimera removal", metavar="input file after chimera removal"),
