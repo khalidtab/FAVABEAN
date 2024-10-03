@@ -12,7 +12,6 @@ BiocManager::install(c("readr", "magrittr", "tidyr", "jsonlite", "data.table"), 
 install.packages("inflection")
 
 # Load the package into your R session
-library(inflection)
 install.packages("remotes")
 
 # Install the correct versions of MASS and Matrix
