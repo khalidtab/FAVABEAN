@@ -39,10 +39,11 @@ seqtab_noChim3 = dplyr::left_join(seqtab_noChim2,mapping2)
 seqtab_noChim3$thefiles = NULL
 print("Samples sequenced multiple times (if any) will now be merged…")
 seqtab_noChim3 = seqtab_noChim3 %>% group_by(alias) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
+print("Sample combining (if any) done.")
 rownames(seqtab_noChim3) = seqtab_noChim3$alias
 seqtab_noChim3$alias = NULL
 
-print("starting collapse of ASVs…")
+print("Starting collapse of ASVs…")
 condensed_table = collapseNoMismatch(as.matrix(seqtab_noChim3), minOverlap = 20, orderBy = "abundance", identicalOnly = FALSE, vec = TRUE, band = -1, verbose = TRUE)
 
 SampleIDs = rownames(condensed_table)
