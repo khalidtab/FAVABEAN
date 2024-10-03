@@ -8,6 +8,7 @@ BiocManager::install("optparse", ask=FALSE, force=TRUE, update=FALSE)
 BiocManager::install(c("readr", "magrittr", "tidyr", "jsonlite", "data.table"), ask=FALSE, force=TRUE, update=FALSE)
 
 # Install remotes to handle older versions
+install.packages("inflection")
 install.packages("remotes")
 
 # Install the correct versions of MASS and Matrix
