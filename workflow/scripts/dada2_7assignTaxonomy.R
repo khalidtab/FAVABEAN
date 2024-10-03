@@ -36,7 +36,7 @@ ASVs = inputMatrix$SampleIDs
 
 
 print("Beginning assignment up to genus level.")
-taxa3 = dada2::assignTaxonomy(ASVs, myDatabase,verbose=TRUE, tryRC = TRUE, multithread = FALSE)
+taxa3 = dada2::assignTaxonomy(ASVs, myDatabase,verbose=TRUE, tryRC = TRUE, multithread = TRUE)
 
 print("Taxonomy assignment up to genus level is completed.")
 

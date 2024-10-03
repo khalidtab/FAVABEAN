@@ -41,7 +41,7 @@ print("Samples sequenced multiple times (if any) will now be merged…")
 seqtab_noChim3 = seqtab_noChim3 %>% group_by(alias) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
 print("Sample combining (if any) done.")
 
-seqtab_noChim3 = seqtab_noChim3[-which(is.na(seqtab_noChim3$alias)),]
+if (any(is.na(seqtab_noChim3$alias))==TRUE){seqtab_noChim3 = seqtab_noChim3[-which(is.na(seqtab_noChim3$alias)),]}
 rownames(seqtab_noChim3) = seqtab_noChim3$alias
 seqtab_noChim3$alias = NULL
 
@@ -49,20 +49,6 @@ collapseNoMismatchOptimized <- function(seqtab, minOverlap = 20, orderBy = "abun
                                         identicalOnly = FALSE, vec = TRUE, band = -1, 
                                         verbose = FALSE) {
   if (verbose) message("Starting optimized collapseNoMismatch function.")
-  
-  # Remove duplicate sequences
-  dupes <- duplicated(colnames(seqtab))
-  if (any(dupes)) {
-    st <- seqtab[, !dupes, drop = FALSE]
-    for (i in which(dupes)) {
-      sq <- colnames(seqtab)[[i]]
-      st[, sq] <- st[, sq] + seqtab[, i]
-    }
-    seqtab <- st
-  }
-  if (identicalOnly) {
-    return(seqtab)
-  }
   
   # Get unique sequences and sort by abundance
   unqs.srt <- sort(colSums(seqtab), decreasing = TRUE)
