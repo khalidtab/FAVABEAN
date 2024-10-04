@@ -411,8 +411,8 @@ rule paired_taxonomy:
     shell:
         """
         Rscript --vanilla workflow/scripts/primer_average.R > {log} 2>&1
-        ls data/favabean/*OTU*.tsv | parallel 'biom convert -i {} -o {.}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy'
-        
+        ls data/favabean/*OTU*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy'
+        ls data/favabean/*ASV*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"'
         """
 
 rule paired:
