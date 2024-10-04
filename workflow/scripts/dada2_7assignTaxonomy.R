@@ -2,6 +2,7 @@ suppressMessages(library("optparse"))
 suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
+suppressMessages(library("dplyr"))
 suppressMessages(library("dada2"))
 
 
@@ -11,6 +12,7 @@ option_list = list(
   make_option(c("-s", "--species"), type="character", default=NULL, help="input database for species assignment to use for taxonomy assignemnt", metavar="input species database"),
   make_option(c("-c", "--cores"), type="character", default=NULL, help="Number of cores to use", metavar="Number of cores to use"),
   make_option(c("-o", "--output"), type="character", default=NULL, help="output file", metavar="output file"),
+  make_option(c("-x", "--condensed"), type="character", default=NULL, help="output condensed file", metavar="output condensed file"),
   make_option(c("-t", "--taxonomy"), type="character", default=NULL, help="output taxonomy file", metavar="output taxonomy file")
 );
 
@@ -22,14 +24,12 @@ if (is.null(opt$input)){
   stop("At least one argument must be supplied (input file)", call.=FALSE)
 }
 
-
-
 inputFile = opt$input
 myDatabase = opt$database
 mySpecies = opt$species
-myCores = opt$cores
+myCores = as.numeric(opt$cores)
 myOutput = opt$output
-taxonomyOutput = opt$taxonomy
+myCondensed = opt$condensed
 
 inputMatrix = read_tsv(inputFile) %>% as.data.frame(.)
 ASVs = inputMatrix$SampleIDs
@@ -62,6 +62,32 @@ taxonomy = data.frame(OTU_ID = inputMatrix3$`#SampleID`, Sequences = inputMatrix
 
 inputMatrix3 = inputMatrix3 %>% .[,-which(colnames(.) %in% c("SampleIDs","taxonomy"))]
 
+# Now let's create the different iterations of the files needed
+readAndCondense = function(primer_path,taxa_path){
+  primer = as.data.frame(primer_path)
+  taxa   = as.data.frame(taxa_path)
+  colnames(primer)[1] = "OTU_ID"
+  primer_joined = dplyr::left_join(primer,taxa) %>% .[,-which(colnames(.) %in% c("Sequences"))]
+  
+  colnames(primer_joined)[length(colnames(primer_joined))] = "taxonomy"
+  
+  message("Condensing the sequences based on the taxonomic rank.")
+  primer_joined_condensed = primer_joined %>% select(-OTU_ID) %>% group_by(taxonomy) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
+  
+  return(list(primer_joined   =  as.data.frame(primer_joined),
+              primer_condensed=as.data.frame(primer_joined_condensed)))
+}
 
-write_tsv(inputMatrix3,myOutput)
-write_tsv(taxonomy,taxonomyOutput)
+myIterations = readAndCondense(inputMatrix3,taxonomy)
+
+inputMatrix4 = left_join(inputMatrix3,taxonomy,by = join_by(`#SampleID` == OTU_ID)) %>% select(-Sequences)
+colnames(inputMatrix4)[length(colnames(inputMatrix4))] = "taxonomy"
+
+write_tsv(inputMatrix4,myOutput)
+
+
+colnames(myIterations$primer_condensed)[1] = "#SampleID"
+myIterations$primer_condensed$taxonomy = myIterations$primer_condensed$`#SampleID`
+myIterations$primer_condensed$`#SampleID` = paste0("OTU",1:dim(myIterations$primer_condensed)[1])
+write_tsv(myIterations$primer_condensed,myCondensed)
+

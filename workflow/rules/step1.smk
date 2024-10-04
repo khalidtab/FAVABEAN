@@ -338,7 +338,7 @@ rule dada2_6_condense:
     input:
         "data/favabean/{region}_chimeraRemoved.RObjects"
     output:
-        "data/favabean/{region}_condense.tsv"
+        "data/favabean/{region}_ASV.tsv"
     log:
         "data/logs/dada2-condenseASVs-{region}.log"
     conda:
@@ -374,12 +374,12 @@ rule download_taxonomy_databases:
 
 rule dada2_7_assignTaxonomy:
     input:
-        ASVs="data/favabean/{region}_condense.tsv",
+        ASVs="data/favabean/{region}_ASV.tsv",
         ref =ancient("data/resources/{db}_ref.fa.gz"),
         spec=ancient("data/resources/{db}_species.fa.gz")
     output:
         OTU_table="data/favabean/{region}_{db}_OTU.tsv",
-        taxonomy ="data/favabean/{region}_{db}_taxonomy.tsv"
+        condensed="data/favabean/{region}_{db}_OTUcondensed.tsv"
     log:
         "data/logs/dada2-{region}-{db}_taxonomy.log"
     conda:
@@ -392,15 +392,28 @@ rule dada2_7_assignTaxonomy:
         Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
             -i {input.ASVs} \
             -o {output.OTU_table} \
-            -t {output.taxonomy} \
             -d {input.ref} \
             -s {input.spec} \
+            -x {output.condensed} \
             -c {threads} > {log} 2>&1
         """
 
 rule paired_taxonomy:
     input:
-        expand("data/favabean/{region}_{db}_taxonomy.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
+        expand("data/favabean/{region}_{db}_OTU.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
+    output:
+        "data/favabean/primer_averaged.tsv"
+    log:
+        "data/logs/primer_averaging.log"
+    conda:
+        "../envs/biom.yaml"
+    message: "Creating biom files, and primer averaging, if needed."
+    shell:
+        """
+        Rscript --vanilla workflow/scripts/primer_average.R > {log} 2>&1
+        ls data/favabean/*OTU*.tsv | parallel 'biom convert -i {} -o {.}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy'
+        
+        """
 
 rule paired:
     input:

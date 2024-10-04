@@ -1,60 +1,72 @@
-suppressMessages(library("optparse"))
 suppressMessages(library("readr"))
 suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
+suppressMessages(library("dplyr"))
 
+theFiles = list.files("data/favabean/","_OTUcondensed.tsv",full.names = TRUE)
 
-option_list = list(
-  make_option(c("-i", "--input"),  type="character", default=NULL, help="Input primer 1 OTU table", metavar="Input primer 1 OTU table"),
-  make_option(c("-p", "--primer"), type="character", default=NULL, help="Input primer 2 OTU table", metavar="Input primer 2 OTU table"),
-  make_option(c("-t", "--taxonomy"), type="character", default=NULL, help="Input taxonomy 1 table that has the OTU and the taxonomy", metavar="Input taxonomy 1 table that has the OTU and the taxonomy"),
-  make_option(c("-t", "--taxa"),     type="character", default=NULL, help="Input taxonomy 2 table that has the OTU and the taxonomy", metavar="Input taxonomy 2 table that has the OTU and the taxonomy"),
-    make_option(c("-o", "--output"), type="character", default=NULL, help="Output file", metavar="Output file")
-);
+readAndCondense = function(primer_path,taxa_path){
+  primer = read_tsv(primer_path,show_col_types = FALSE) %>% as.data.frame(.)
+  taxa   = read_tsv(taxa_path,show_col_types = FALSE) %>% as.data.frame(.)  
+  colnames(primer)[1] = "OTU_ID"
+  primer_joined = dplyr::left_join(primer,taxa) %>% .[,-which(colnames(.) %in% c("Sequences"))]
+  
+  message("Condensing the sequences based on the taxonomic rank.")
+  primer_joined_condensed = primer_joined %>% select(-OTU_ID) %>% group_by(Taxonomy) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
 
-opt_parser = OptionParser(option_list=option_list);
-opt = parse_args(opt_parser);
+  return(list(primer_joined   =  as.data.frame(primer_joined),
+              primer_condensed=as.data.frame(primer_joined_condensed)))
+  }
 
-if (is.null(opt$database)){
-  print_help(opt_parser)
-  stop("At least one argument must be supplied (input file)", call.=FALSE)
+opt = NULL
+opt$output = "data/favabean/primer_averaged.tsv"
+
+message("First primer.")
+primer1 = read_tsv(theFiles[1]) %>% as.data.frame(.)
+
+message("Second primer.")
+primer2 = read_tsv(theFiles[2]) %>% as.data.frame(.)
+
+sampleNames = unique(c(colnames(primer1), colnames(primer2)))
+sampleNames = sampleNames[-which(sampleNames %in% c("taxonomy","#SampleID"))]
+
+sharedNonSharedSamples = (c(colnames(primer1),colnames(primer2)))
+shared = sharedNonSharedSamples[duplicated(sharedNonSharedSamples)]
+shared = shared[-which(shared %in% c("taxonomy","#SampleID"))]
+
+notShared = sampleNames[-which(shared %in% sampleNames)]
+
+if(length(notShared) > 0){
+  warning("The following samples were found in only one primer. Printing information on the samples, and will continue primer averaging without them.")
+  print(notShared)
+  print(paste0("Primer1: ", basename(theFiles[1]),
+        "    primer2: ",basename(theFiles[2])))
 }
 
-primer1 = read_tsv(opt$input) %>% as.data.frame(.)
-primer2 = read_tsv(opt$primer) %>% as.data.frame(.)
-taxa1   = read_tsv(opt$taxonomy) %>% as.data.frame(.)
-taxa2   = read_tsv(opt$taxa) %>% as.data.frame(.)
+primer1 = primer1 %>% select(shared,"taxonomy")
+primer2 = primer2 %>% select(shared,"taxonomy")
 
-colnames(primer1)[1] = "OTU_ID"
-colnames(primer2)[1] = "OTU_ID"
+taxonomy = unique(c(primer1$tax,primer2$taxonomy))
 
-total_taxa = c(taxa1$Taxonomy,taxa2$Taxonomy) %>% unique(.)
-
-test = matrix(nrow=length(total_taxa),ncol=dim(primer1)[2]) %>% as.data.frame(.)
-colnames(test) = colnames(primer1)
-test[,1] = total_taxa
-
-primer1 = dplyr::left_join(primer1,taxa1) %>% .[,-which(colnames(.) == "Sequences")]
-primer2 = dplyr::left_join(primer2,taxa2) %>% .[,-which(colnames(.) == "Sequences")]
-
+test = matrix(nrow=length(taxonomy),ncol=1+length(shared)) %>% as.data.frame(.)
+colnames(test) = c("OTU_ID",shared)
+test[,1] = taxonomy
 heightOfTable = dim(test)[1]
 
 for (x in 1:heightOfTable){ # Iterate over the rows
   currentTaxa = test[x,1]
   
-  rowV13 = primer1[ which(primer1$Taxonomy == currentTaxa), ]
-  rowV13$Taxonomy = NULL
-  rowV13$OTU_ID = NULL
-  rowV13 = colSums(rowV13) %>% t(.) %>% as.data.frame(.)
+  rowV13 = primer1[ which(primer1$taxonomy == currentTaxa), ]
+  rowV13$taxonomy = NULL
+  rowV13$`#SampleID` = NULL
   
-  rowV45 = primer2[ which(primer2$Taxonomy == currentTaxa), ]
-  rowV45$Taxonomy = NULL
-  rowV45$OTU_ID = NULL
-  rowV45 = colSums(rowV45) %>% t(.) %>% as.data.frame(.)
+  rowV45 = primer2[ which(primer2$taxonomy == currentTaxa), ]
+  rowV45$taxonomy = NULL
+  rowV45$`#SampleID` = NULL
   
-  if (dim(rowV45)[1] == 0){
+  if (is.na(sum(as.numeric(rowV45)))){
     test[x,] = rowV13 # If the rowV45 is empty, then add the V13 row
-  } else if (dim(rowV13)[1] == 0){
+  } else if (is.na(sum(as.numeric(rowV13)))){
     test[x,] = rowV45 # If the rowV13 is empty, then add the V45 row
   } else { # Meaning, the taxa exists in both tables
     
@@ -69,4 +81,8 @@ for (x in 1:heightOfTable){ # Iterate over the rows
   }
 }
 
-write_tsv(test,opt$output,col_names = TRUE)
+test[,1] = taxonomy
+test[, -1] <- lapply(test[, -1], function(x) as.numeric(as.character(x)))
+
+write_tsv(test,"data/favabean/primer_averaged.tsv",col_names = TRUE)
+
