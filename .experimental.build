@@ -2,13 +2,12 @@ FROM snakemake/snakemake:v7.32.4
 
 WORKDIR ../../
 
-RUN wget -s https://www.random.org/integers/?num=1&min=1&max=100000&col=1&base=10&format=plain&rnd=new > echo 
 ADD "https://api.github.com/repos/khalidtab/FAVABEAN/commits?per_page=1" latest_commit
 RUN git clone -b experimental https://github.com/khalidtab/FAVABEAN && \
     mv ./FAVABEAN/workflow/build.snakefile ./build.snakefile && \
     cp -r FAVABEAN/workflow ./workflow && \
     cp -r FAVABEAN/files_info.csv ./files_info.csv && \
-    cp -r FAVABEAN/input.yaml ./input.yaml && \
+    cp -r FAVABEAN/favabean.yaml ./favabean.yaml && \
     cp FAVABEAN/workflow/snakefile ./snakefile && \
     rm -r FAVABEAN && \
     snakemake snakefile.final --use-conda --cores all --conda-create-envs-only --snakefile ./build.snakefile 2>&1 | tee -a environments.txt && \

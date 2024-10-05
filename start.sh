@@ -6,11 +6,11 @@ echo -e "\033[0;32mWelcome to FAVABEAN!\033[0m"
 echo -e "\033[0;32m====================\033[0m"
 echo ""
 echo ""
-echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and input.yaml)'"
+echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and favabean.yaml)'"
 # Step 1: Copy files as needed (if applicable)
 cp -p environments.txt data/
 cp -p files_info.csv data/
-cp -p input.yaml data/
+cp -p favabean.yaml data/
 
 echo ""
 echo ""

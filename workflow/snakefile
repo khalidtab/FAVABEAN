@@ -1,2 +1,2 @@
-configfile: "data/input.yaml"
+configfile: "data/favabean.yaml"
 include: "rules/step1.smk"
