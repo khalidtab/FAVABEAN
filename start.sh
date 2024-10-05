@@ -8,7 +8,7 @@ echo ""
 echo ""
 echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and favabean.yaml)'"
 # Step 1: Copy files as needed (if applicable)
-cp -p environments.txt data/
+cp -p environments.txt data/FAVABEAN_environments.txt
 cp -p files_info.csv data/
 cp -p favabean.yaml data/
 
