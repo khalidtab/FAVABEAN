@@ -1,2 +1,2 @@
 sample,fastq1,fastq2,primer_5,primer_3,region,Batch_ID,expected length
-
+#Rows with the same name in this column will be combined into a asingle sample,# Fastq R1,#Fastq R2,# Forward primer,# Reverse primer,# Use unique name for each forward/reverse primer combinations,# Leave empty,# Expected length of the sequenced region
