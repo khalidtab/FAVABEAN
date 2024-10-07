@@ -8,9 +8,9 @@ echo ""
 echo ""
 echo "Copying the template files in your directly if they don't exist (environments.txt, files_info.csv, and favabean.yaml)'"
 # Step 1: Copy files as needed (if applicable)
-cp -pn environments.txt data/FAVABEAN_environments.txt
-cp -pn files_info.csv data/files_info.csv
-cp -pn favabean.yaml data/favabean.yaml
+cp -pn FAVABEAN_environments.txt data/
+cp -pn files_info.csv data/
+cp -pn favabean.yaml data/
 
 echo "If this is the first time you are running the pipeline on this dataset, you will need to initialize your 'files_info.csv' file."
 echo "Please write 'conda activate' and copy the biom.yaml environment link from FAVABEAN_environments.txt file"
