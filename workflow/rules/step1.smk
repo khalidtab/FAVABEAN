@@ -17,12 +17,6 @@ if not os.path.exists(output_csv):
 else:
     print(f"Sequencing batch information already exists, as the {output_csv} already exists, skipping R script execution.")
 
-# Step 2: Read the CSV file (whether generated or already existing)
-samples_table = pd.read_csv(output_csv).set_index(["sample", "region"], drop=False)
-samples_table["fastq1"] = "data/" + samples_table["fastq1"]
-samples_table["fastq2"] = "data/" + samples_table["fastq2"]
-
-# Check for column names with leading or trailing whitespaces
 def check_column_names(df):
     columns = df.columns
     stripped_columns = [col.strip() for col in columns]
@@ -33,9 +27,24 @@ whitespace_columns = check_column_names(samples_table)
 if whitespace_columns:
     print(f"Warning: The following columns have leading or trailing whitespaces: {whitespace_columns}")
 
-# Get samples from batch and region
 def get_samples_from_batch_region(batch, region):
     return samples_table.loc[(samples_table['Batch_ID'] == batch) & (samples_table['region'] == region), 'sample'].tolist()
+
+class Extractor:
+    def __init__(self):
+        pass
+
+    def getSampleInfo(self, fileName:str):
+        baseName = fileName.split(".")[0]
+        baseSplit = baseName.split("_")
+        sampleNum = int(baseSplit[-4].replace("S",""))
+        return sampleNum
+
+# Create an instance of the Extractor class
+extractor = Extractor()
+
+# Apply the getSampleInfo method to the fastq1 column and store the results in a new column
+samples_table["SampleNum"] = samples_table["fastq1"].apply(lambda x: extractor.getSampleInfo(x))
 
 # Define thread management functions
 def determine_threads(wildcards):
