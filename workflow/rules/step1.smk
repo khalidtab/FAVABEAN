@@ -8,12 +8,17 @@ output_csv = "data/files_info_Batches.csv"
 # Step 1: Check if the file already exists
 if not os.path.exists(output_csv):
     try:
-    print("If this is the first time you are running the pipeline on this dataset, you will need to initialize your files_info.csv file. Please write conda activate and copy the biom.yaml environment link from FAVABEAN_environments.txt file. Example: conda activate biom environment such as : .snakemake/conda/007a7beaa3353a33c938a5a0e57be4ff_ .Then, execute the following command: Rscript --vanilla workflow/scripts/batch.R")
-    else:
-    print(f"Sequencing batch  information already exists, as the {output_csv} already exists,  skipping R script execution.")
+        print("If this is the first time you are running the pipeline on this dataset, you will need to initialize your files_info.csv file.")
+        print("Please activate the conda environment and copy the biom.yaml environment link from FAVABEAN_environments.txt file.")
+        print("Example: conda activate biom environment such as: .snakemake/conda/007a7beaa3353a33c938a5a0e57be4ff_")
+        print("Then, execute the following command: Rscript --vanilla workflow/scripts/batch.R")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+else:
+    print(f"Sequencing batch information already exists, as the {output_csv} already exists, skipping R script execution.")
 
-
-# Internally adjust the `fastq1` and `fastq2` columns
+# Step 2: Read the CSV file (whether generated or already existing)
+samples_table = pd.read_csv(output_csv).set_index(["sample", "region"], drop=False)
 samples_table["fastq1"] = "data/" + samples_table["fastq1"]
 samples_table["fastq2"] = "data/" + samples_table["fastq2"]
 
