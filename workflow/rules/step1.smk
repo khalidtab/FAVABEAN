@@ -17,6 +17,14 @@ if not os.path.exists(output_csv):
 else:
     print(f"Sequencing batch information already exists, as the {output_csv} already exists, skipping R script execution.")
 
+
+try:
+    samples_table = pd.read_csv(output_csv)
+    print(f"Loaded samples table with {len(samples_table)} entries.")
+except FileNotFoundError:
+    print(f"Error: {output_csv} not found. Please make sure the file is generated correctly.")
+    samples_table = None
+
 def check_column_names(df):
     columns = df.columns
     stripped_columns = [col.strip() for col in columns]
