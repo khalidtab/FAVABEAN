@@ -8,23 +8,26 @@ output_csv = "data/files_info_Batches.csv"
 # Step 1: Check if the file already exists
 if not os.path.exists(output_csv):
     try:
-        print("If this is the first time you are running the pipeline on this dataset, you will need to initialize your files_info.csv file.")
-        print("Please activate the conda environment and copy the biom.yaml environment link from FAVABEAN_environments.txt file.")
-        print("Example: conda activate biom environment such as: .snakemake/conda/007a7beaa3353a33c938a5a0e57be4ff_")
-        print("Then, execute the following command: Rscript --vanilla workflow/scripts/batch.R")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        # Run the R script if the file does not exist
+        print("Sequencing batches information not available. Reading the qzipped files and determining that now.")
+        subprocess.run(
+            f"conda run -p /.snakemake/conda/ee5771f5a5b4f769c2b98bafaa645bd0_ Rscript workflow/scripts/batch.R",
+            shell=True, check=True)
+        print("Sequencing batches determined. File saved as 'files_info_Batches.csv'")
+    except subprocess.CalledProcessError as e:
+        print(f"Error occurred while running the R script: {e}")
+        exit(1)
 else:
-    print(f"Sequencing batch information already exists, as the {output_csv} already exists, skipping R script execution.")
+    print(f"Sequencing batch  information already exists, as the {output_csv} already exists,  skipping R script execution.")
 
+# Step 2: Read the CSV file (whether generated or already existing)
+samples_table = pd.read_csv(output_csv).set_index(["sample", "region"], drop=False)
 
-try:
-    samples_table = pd.read_csv(output_csv)
-    print(f"Loaded samples table with {len(samples_table)} entries.")
-except FileNotFoundError:
-    print(f"Error: {output_csv} not found. Please make sure the file is generated correctly.")
-    samples_table = None
+# Internally adjust the `fastq1` and `fastq2` columns
+samples_table["fastq1"] = "data/" + samples_table["fastq1"]
+samples_table["fastq2"] = "data/" + samples_table["fastq2"]
 
+# Check for column names with leading or trailing whitespaces
 def check_column_names(df):
     columns = df.columns
     stripped_columns = [col.strip() for col in columns]
@@ -35,32 +38,25 @@ whitespace_columns = check_column_names(samples_table)
 if whitespace_columns:
     print(f"Warning: The following columns have leading or trailing whitespaces: {whitespace_columns}")
 
+# Get samples from batch and region
 def get_samples_from_batch_region(batch, region):
     return samples_table.loc[(samples_table['Batch_ID'] == batch) & (samples_table['region'] == region), 'sample'].tolist()
-
-class Extractor:
-    def __init__(self):
-        pass
-
-    def getSampleInfo(self, fileName:str):
-        baseName = fileName.split(".")[0]
-        baseSplit = baseName.split("_")
-        sampleNum = int(baseSplit[-4].replace("S",""))
-        return sampleNum
-
-# Create an instance of the Extractor class
-extractor = Extractor()
-
-# Apply the getSampleInfo method to the fastq1 column and store the results in a new column
-samples_table["SampleNum"] = samples_table["fastq1"].apply(lambda x: extractor.getSampleInfo(x))
 
 # Define thread management functions
 def determine_threads(wildcards):
     total_cores = workflow.cores
-    return max(1,total_cores // 2)
+    core_multiplier = workflow.attempt
+    return total_cores / 2
 
 def all_threads(wildcards):
-    return max(1, workflow.cores)
+    total_cores = workflow.cores
+    core_multiplier = workflow.attempt
+    return total_cores
+    
+    
+    #    return min(2 * core_multiplier, total_cores)
+    # This sets a base of 2 threads per job and adjusts based on the attempt number.
+    # Adjust this logic as needed for your specific use-case.
     
 # Now the samples_table variable has the updated "SampleNum" column and can be used in the rest of your script.
 
@@ -197,12 +193,13 @@ rule cutAndKeepSameLengthSequencesForFigaro:
         rm data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R1_trimmed.fastq data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/{wildcards.sample}_S{params.sampleNum}_L001_R2_trimmed.fastq
         """
 
+
 rule figaro:
     input:
-        lambda wildcards: expand("data/favabean/{batch}-{region}/.{sample}_seqkit.done",
-                                 batch=wildcards.batch,
-                                 region=wildcards.region,
-                                 sample=get_samples_from_batch_region(wildcards.batch, wildcards.region))
+        lambda wildcards: [
+            f"data/favabean/{wildcards.batch}-{wildcards.region}/.{sample}_seqkit.done"
+            for sample in get_samples_from_batch_region(wildcards.batch, wildcards.region)
+        ]
     output:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
     log:
@@ -235,8 +232,6 @@ rule dada2_1_filterTrim:
     params:
         figaro=config["figaro"]
     message: "DADA2 - trimming and filtering FASTQ files based on Figaro's {params.figaro} chosen method. batch: {wildcards.batch}, region: {wildcards.region}"
-    threads:
-        all_threads
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_1filterAndTrim.R -i {input} -f data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt -o data/favabean/{wildcards.batch}-{wildcards.region}/dada2 -p {params.figaro} -c {threads} >> {log} 2>&1
@@ -330,12 +325,29 @@ rule dada2_4_mergePairedEnds:
 
 combinations = [(row['Batch_ID'], row['region']) for _, row in samples_table.drop_duplicates(['Batch_ID', 'region']).iterrows()]
 
+rule all:
+    input:
+        expand(
+            [
+                "data/favabean/{batch}-{region}/figaro/trimParameters.json",
+                "data/favabean/{batch}-{region}/dada2",
+                "data/favabean/{batch}-{region}/.tmp/.DADA2_trimFilter.done",
+                # Include other target outputs as needed
+            ],
+            zip,
+            batch=[x[0] for x in combinations],
+            region=[x[1] for x in combinations]
+        )
+
 
 rule dada2_5_ChimeraDetectAndRemove:
     input:
-        expand("data/favabean/{batch}-{region}/seqtab.tsv", 
-                batch=[combo[0] for combo in combinations],
-               region=[combo[1] for combo in combinations])
+        expand(
+            "data/favabean/{batch}-{region}/seqtab.tsv",
+            zip,
+            batch=[combo[0] for combo in combinations],
+            region=[combo[1] for combo in combinations]
+        )
     output:
         "data/favabean/{region}_chimeraRemoved.RObjects"
     log:
@@ -355,7 +367,7 @@ rule dada2_6_condense:
     input:
         "data/favabean/{region}_chimeraRemoved.RObjects"
     output:
-        "data/favabean/{region}_ASV.tsv"
+        "data/favabean/{region}_condense.tsv"
     log:
         "data/logs/dada2-condenseASVs-{region}.log"
     conda:
@@ -391,12 +403,12 @@ rule download_taxonomy_databases:
 
 rule dada2_7_assignTaxonomy:
     input:
-        ASVs="data/favabean/{region}_ASV.tsv",
+        ASVs="data/favabean/{region}_condense.tsv",
         ref =ancient("data/resources/{db}_ref.fa.gz"),
         spec=ancient("data/resources/{db}_species.fa.gz")
     output:
         OTU_table="data/favabean/{region}_{db}_OTU.tsv",
-        condensed="data/favabean/{region}_{db}_OTUcondensed.tsv"
+        taxonomy ="data/favabean/{region}_{db}_taxonomy.tsv"
     log:
         "data/logs/dada2-{region}-{db}_taxonomy.log"
     conda:
@@ -409,29 +421,15 @@ rule dada2_7_assignTaxonomy:
         Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
             -i {input.ASVs} \
             -o {output.OTU_table} \
+            -t {output.taxonomy} \
             -d {input.ref} \
             -s {input.spec} \
-            -x {output.condensed} \
             -c {threads} > {log} 2>&1
         """
 
 rule paired_taxonomy:
     input:
-        expand("data/favabean/{region}_{db}_OTU.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
-    output:
-        "data/favabean/primer_averaged.tsv"
-    log:
-        "data/logs/primer_averaging.log"
-    conda:
-        "../envs/biom.yaml"
-    message: "Creating biom files, and primer averaging, if needed."
-    shell:
-        """
-        Rscript --vanilla workflow/scripts/primer_average.R > {log} 2>&1
-        ls data/favabean/*OTU*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy'
-        ls data/favabean/*ASV*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"'
-        biom convert -i data/favabean/primer_averaged.tsv -o data/favabean/primer_averaged.biom --to-json --table-type="OTU table"
-        """
+        expand("data/favabean/{region}_{db}_taxonomy.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
 
 rule paired:
     input:
