@@ -64,10 +64,11 @@ names(filtFs) <- sample.names
 names(filtRs) <- sample.names
 
 print("Files detected, will perform filtering and trimming on the fastq files.")
+print(paste("Parameters - threads",cores,"Truncation lengths, Forward:",result_row$R1Trim,"Reverse:",result_row$R2Trim))
 
 out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
                     truncLen=c(result_row$R1Trim,result_row$R2Trim),
                     maxN=0,
                     maxEE=c(result_row$R1EE,result_row$R2EE), truncQ=2, rm.phix=TRUE,
-                    compress=TRUE, multithread=cores, matchIDs=TRUE)
+                    compress=TRUE, multithread=cores, matchIDs=TRUE,verbose=TRUE)
 
