@@ -47,10 +47,9 @@ if (DADA2Options == "highest_coverage"){
   } 
 
 if (DADA2Options == "least_errors"){
-
-  min_R1EE_rows = myJSONTable %>% .[.$R1EE == min(.$R1EE),] # Find rows with minimum R1EE
-  min_R2EE_rows <- min_R1EE_rows[min_R1EE_rows$R2EE == min(min_R1EE_rows$R2EE),] # If there are ties, find rows with minimum R2EE
-  result_row = min_R2EE_rows[which.max(min_R2EE_rows$score),] # If there are still ties, find row with maximum score
+# score is determined by the percentage of reads expected to pass filtering with a penalty for allowed errors that grows exponentially
+  score = myJSONTable %>% .[.$score == max(.$score),] 
+  score = score[which.max(score$score),] # If there are still ties, find row with maximum score
   }
 
 print("Parameters for DADA2 has been chosen.")

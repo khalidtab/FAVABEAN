@@ -23,6 +23,9 @@ else:
 # Step 2: Read the CSV file (whether generated or already existing)
 samples_table = pd.read_csv(output_csv).set_index(["sample", "region"], drop=False)
 
+print(f"Loaded samples table with {len(samples_table)} entries.")
+
+
 # Internally adjust the `fastq1` and `fastq2` columns
 samples_table["fastq1"] = "data/" + samples_table["fastq1"]
 samples_table["fastq2"] = "data/" + samples_table["fastq2"]
@@ -211,7 +214,7 @@ rule figaro:
         determine_threads
     shell:
         """
-         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina >> {log}
+         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina > {log} 2>&1
          # Do some clean up of files that were solely used for figaro parameters generation
          rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro
         """
