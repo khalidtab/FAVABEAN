@@ -47,9 +47,10 @@ if (DADA2Options == "highest_coverage"){
   } 
 
 if (DADA2Options == "least_errors"){
-# score is determined by the percentage of reads expected to pass filtering with a penalty for allowed errors that grows exponentially
-  score = myJSONTable %>% .[.$score == max(.$score),] 
-  score = score[which.max(score$score),] # If there are still ties, find row with maximum score
+
+  min_R1EE_rows = myJSONTable %>% .[.$R1EE == min(.$R1EE),] # Find rows with minimum R1EE
+  min_R2EE_rows <- min_R1EE_rows[min_R1EE_rows$R2EE == min(min_R1EE_rows$R2EE),] # If there are ties, find rows with minimum R2EE
+  result_row = min_R2EE_rows[which.max(min_R2EE_rows$score),] # If there are still ties, find row with maximum score
   }
 
 print("Parameters for DADA2 has been chosen.")
@@ -64,11 +65,10 @@ names(filtFs) <- sample.names
 names(filtRs) <- sample.names
 
 print("Files detected, will perform filtering and trimming on the fastq files.")
-print(paste("Parameters - threads",cores,"Truncation lengths, Forward:",result_row$R1Trim,"Reverse:",result_row$R2Trim))
 
 out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
                     truncLen=c(result_row$R1Trim,result_row$R2Trim),
                     maxN=0,
                     maxEE=c(result_row$R1EE,result_row$R2EE), truncQ=2, rm.phix=TRUE,
-                    compress=TRUE, multithread=cores, matchIDs=TRUE,verbose=TRUE)
+                    compress=TRUE, multithread=cores, matchIDs=TRUE)
 

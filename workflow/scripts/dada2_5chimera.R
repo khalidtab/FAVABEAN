@@ -30,19 +30,23 @@ inputfiles = list.files(inputfile,pattern = "seqtab", full.names = TRUE, recursi
 inputfiles2 = inputfiles %>% grepl(myparameter,x=.) %>% inputfiles[.]
 
 process_file <- function(path) {
-  newTable = data.table::fread(path) %>% as.data.frame() # This is a faster way to read the files than read_tsv()
+  newTable = data.table::fread(path,sep="\t") %>% as.data.frame() # This is a faster way to read the files than read_tsv()
   
   rownames(newTable) <- newTable[, 1]
   newTable[, 1] <- NULL
   
-  newTable = as.matrix(newTable)
+  newTable = as.data.frame(as.matrix(newTable))
   return(newTable)
 }
 
-inputfiles2 = base::sapply(inputfiles2, process_file,simplify=TRUE)
+inputfiles2 = base::sapply(inputfiles2, process_file,simplify=FALSE)
 print("Merging sequence tables…")
 
+if (length(inputfiles2) == 1){
+  inputfiles2 = inputfiles2[[1]] %>% as.matrix(.)
+} else {
 inputfiles2 = inputfiles2 %>% mergeSequenceTables(tables=.,tryRC = TRUE)
+}
 
 print("Done with merging sequence tables. Table format modification to accomodate chimera removal starts now…")
 

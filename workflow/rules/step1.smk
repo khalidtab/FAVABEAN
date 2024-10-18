@@ -235,8 +235,6 @@ rule dada2_1_filterTrim:
     params:
         figaro=config["figaro"]
     message: "DADA2 - trimming and filtering FASTQ files based on Figaro's {params.figaro} chosen method. batch: {wildcards.batch}, region: {wildcards.region}"
-    threads:
-        all_threads
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_1filterAndTrim.R -i {input} -f data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt -o data/favabean/{wildcards.batch}-{wildcards.region}/dada2 -p {params.figaro} -c {threads} >> {log} 2>&1
