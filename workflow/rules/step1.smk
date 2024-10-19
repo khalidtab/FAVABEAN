@@ -45,6 +45,17 @@ if whitespace_columns:
 def get_samples_from_batch_region(batch, region):
     return samples_table.loc[(samples_table['Batch_ID'] == batch) & (samples_table['region'] == region), 'sample'].tolist()
 
+# Get expected length from batch and region
+def get_expected_length_from_batch_region(batch, region):
+    lengths = samples_table.loc[
+        (samples_table['Batch_ID'] == batch) & (samples_table['region'] == region), 'expected.length'
+    ].unique()
+    if len(lengths) == 1:
+        return lengths[0]
+    else:
+        raise ValueError(f"Multiple expected lengths found for batch {batch} and region {region}.")
+
+
 # Define thread management functions
 def determine_threads(wildcards):
     total_cores = workflow.cores
@@ -210,11 +221,13 @@ rule figaro:
     conda:
         "../envs/figaro.yaml"
     message: "Figaro - calculating the optimal parameters for DADA2 trimming for batch: {wildcards.batch}, region: {wildcards.region}"
+    params:
+        expected_length = lambda wildcards: get_expected_length_from_batch_region(wildcards.batch, wildcards.region)
     threads:
         determine_threads
     shell:
         """
-         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a 500 -F illumina > {log} 2>&1
+         python workflow/envs/figaro/figaro/figaro.py -i data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro -o data/favabean/{wildcards.batch}-{wildcards.region}/figaro/ -f 1 -r 1 -a {params.expected_length} -F illumina > {log} 2>&1
          # Do some clean up of files that were solely used for figaro parameters generation
          rm -rf data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro
         """
