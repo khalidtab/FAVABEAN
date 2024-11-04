@@ -66,9 +66,39 @@ names(filtRs) <- sample.names
 
 print("Files detected, will perform filtering and trimming on the fastq files.")
 
-out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
-                    truncLen=c(result_row$R1Trim,result_row$R2Trim),
-                    maxN=0,
-                    maxEE=c(result_row$R1EE,result_row$R2EE), truncQ=2, rm.phix=TRUE,
-                    compress=TRUE, multithread=cores, matchIDs=TRUE)
 
+
+# Define your original command and the alternative command
+original_command <- function() {
+  out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
+                      truncLen=c(result_row$R1Trim,result_row$R2Trim),
+                      maxN=0,
+                      maxEE=c(result_row$R1EE,result_row$R2EE), truncQ=2, rm.phix=TRUE,
+                      compress=TRUE, multithread=cores, matchIDs=TRUE,verbose = TRUE)
+}
+
+alternative_command <- function() {
+  out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, 
+                      truncLen=c(result_row$R1Trim,result_row$R2Trim),
+                      maxN=0,
+                      maxEE=c(result_row$R1EE,result_row$R2EE), truncQ=2, rm.phix=TRUE,
+                      compress=TRUE, multithread=cores,verbose = TRUE)
+}
+
+
+result <- withCallingHandlers( # Use withCallingHandlers to capture warnings
+  {
+    res <- original_command() # Attempt to run the original command
+  },
+  warning = function(w) {
+    # Check if the warning message matches the specific warning
+    if (grepl("No reads passed the filter. Please revisit your filtering parameters.", w$message)) {
+      message("Specific warning caught: ", w$message)
+      # Run the alternative command
+      message("Rerunning filtering with sequence match ID turned off. This is most likely because the repository you used to download the FASTQ files removed the information associated with the sequences for de-identification reasons.")
+      res <- alternative_command() 
+    }
+  }
+)
+
+# The 'result' variable now contains the output from either the original or alternative command
