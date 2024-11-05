@@ -74,20 +74,19 @@ readAndCondense = function(primer_path,taxa_path){
   message("Condensing the sequences based on the taxonomic rank.")
   primer_joined_condensed = primer_joined %>% select(-OTU_ID) %>% group_by(taxonomy) %>% summarize(across(everything(), sum)) %>% as.data.frame(.)
   
+  
   return(list(primer_joined   =  as.data.frame(primer_joined),
               primer_condensed=as.data.frame(primer_joined_condensed)))
 }
 
 myIterations = readAndCondense(inputMatrix3,taxonomy)
-
 inputMatrix4 = left_join(inputMatrix3,taxonomy,by = join_by(`#SampleID` == OTU_ID)) %>% select(-Sequences)
 colnames(inputMatrix4)[length(colnames(inputMatrix4))] = "taxonomy"
-
 write_tsv(inputMatrix4,myOutput)
-
 
 colnames(myIterations$primer_condensed)[1] = "#SampleID"
 myIterations$primer_condensed$taxonomy = myIterations$primer_condensed$`#SampleID`
 myIterations$primer_condensed$`#SampleID` = paste0("OTU",1:dim(myIterations$primer_condensed)[1])
-write_tsv(myIterations$primer_condensed,myCondensed)
+
+write_tsv(myIterations[["primer_condensed"]],myCondensed)
 
