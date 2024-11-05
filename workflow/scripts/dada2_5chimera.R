@@ -35,7 +35,7 @@ process_file <- function(path) {
   rownames(newTable) <- newTable[, 1]
   newTable[, 1] <- NULL
   
-  newTable = as.data.frame(as.matrix(newTable))
+  newTable = as.matrix(newTable)
   return(newTable)
 }
 
