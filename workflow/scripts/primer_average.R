@@ -3,7 +3,7 @@ suppressMessages(library("tidyr"))
 suppressMessages(library("magrittr"))
 suppressMessages(library("dplyr"))
 
-theFiles = list.files("data/favabean/","_OTUcondensed.tsv",full.names = TRUE)
+theFiles = list.files("data/favabean/","_taxonomy.tsv",full.names = TRUE)
 
 readAndCondense = function(primer_path,taxa_path){
   primer = read_tsv(primer_path,show_col_types = FALSE) %>% as.data.frame(.)
@@ -21,8 +21,13 @@ readAndCondense = function(primer_path,taxa_path){
 opt = NULL
 opt$output = "data/favabean/primer_averaged.tsv"
 
+
+if (length(theFiles) == 1){message("There is only one primer. Skipping primer averaging and finalizing biom file creation")}else{
+  
+  
 message("First primer.")
 primer1 = read_tsv(theFiles[1]) %>% as.data.frame(.)
+
 
 message("Second primer.")
 primer2 = read_tsv(theFiles[2]) %>% as.data.frame(.)
@@ -85,4 +90,6 @@ test[,1] = taxonomy
 test[, -1] <- lapply(test[, -1], function(x) as.numeric(as.character(x)))
 
 write_tsv(test,"data/favabean/primer_averaged.tsv",col_names = TRUE)
+}
+
 

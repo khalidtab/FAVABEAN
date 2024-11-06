@@ -436,18 +436,18 @@ rule dada2_7_assignTaxonomy:
         """
         Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
             -i {input.ASVs} \
-            -o {output.OTU_table} \
-            -t {output.taxonomy} \
             -d {input.ref} \
             -s {input.spec} \
-            -c {threads} > {log} 2>&1
+            -c {threads} \
+            -o {output.OTU_table} \
+            -t {output.taxonomy} > {log} 2>&1
         """
 
 rule paired_taxonomy:
     input:
         expand("data/favabean/{region}_{db}_OTU.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
     output:
-        "data/favabean/primer_averaged.tsv"
+        touch("data/favabean/.doneprimer_averaged.txt")
     log:
         "data/logs/primer_averaging.log"
     conda:
@@ -456,9 +456,13 @@ rule paired_taxonomy:
     shell:
         """
         Rscript --vanilla workflow/scripts/primer_average.R > {log} 2>&1
-        ls data/favabean/*OTU*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy'
-        ls data/favabean/*ASV*.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"'
-        biom convert -i data/favabean/primer_averaged.tsv -o data/favabean/primer_averaged.biom --to-json --table-type="OTU table"
+        ls data/favabean/*OTU.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy' > {log} 2>&1
+        ls data/favabean/*taxonomy.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"' > {log} 2>&1
+        if [ -f data/favabean/primer_averaged.tsv ]; then
+          ls data/favabean/primer_averaged.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"' > {log} 2>&1
+        else
+          echo "File data/favabean/primer_averaged.tsv does not exist, skipping step."
+        fi
         """
 
 rule paired:

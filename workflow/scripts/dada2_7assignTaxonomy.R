@@ -12,7 +12,6 @@ option_list = list(
   make_option(c("-s", "--species"), type="character", default=NULL, help="input database for species assignment to use for taxonomy assignemnt", metavar="input species database"),
   make_option(c("-c", "--cores"), type="character", default=NULL, help="Number of cores to use", metavar="Number of cores to use"),
   make_option(c("-o", "--output"), type="character", default=NULL, help="output file", metavar="output file"),
-  make_option(c("-x", "--condensed"), type="character", default=NULL, help="output condensed file", metavar="output condensed file"),
   make_option(c("-t", "--taxonomy"), type="character", default=NULL, help="output taxonomy file", metavar="output taxonomy file")
 );
 
@@ -29,7 +28,7 @@ myDatabase = opt$database
 mySpecies = opt$species
 myCores = as.numeric(opt$cores)
 myOutput = opt$output
-myCondensed = opt$condensed
+myCondensed = opt$taxonomy
 
 inputMatrix = read_tsv(inputFile) %>% as.data.frame(.)
 ASVs = inputMatrix$SampleIDs
@@ -85,8 +84,6 @@ colnames(inputMatrix4)[length(colnames(inputMatrix4))] = "taxonomy"
 write_tsv(inputMatrix4,myOutput)
 
 colnames(myIterations$primer_condensed)[1] = "#SampleID"
-myIterations$primer_condensed$taxonomy = myIterations$primer_condensed$`#SampleID`
-myIterations$primer_condensed$`#SampleID` = paste0("OTU",1:dim(myIterations$primer_condensed)[1])
 
 write_tsv(myIterations[["primer_condensed"]],myCondensed)
 
