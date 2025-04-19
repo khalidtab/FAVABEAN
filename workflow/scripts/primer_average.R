@@ -48,10 +48,10 @@ if(length(notShared) > 0){
         "    primer2: ",basename(theFiles[2])))
 }
 
-primer1 = primer1 %>% select(shared,"taxonomy")
-primer2 = primer2 %>% select(shared,"taxonomy")
+primer1 = primer1 %>% select("#SampleID",shared)
+primer2 = primer2 %>% select("#SampleID",shared)
 
-taxonomy = unique(c(primer1$tax,primer2$taxonomy))
+taxonomy = unique(c(primer1[,1],primer2[,1]))
 
 test = matrix(nrow=length(taxonomy),ncol=1+length(shared)) %>% as.data.frame(.)
 colnames(test) = c("OTU_ID",shared)
@@ -61,18 +61,18 @@ heightOfTable = dim(test)[1]
 for (x in 1:heightOfTable){ # Iterate over the rows
   currentTaxa = test[x,1]
   
-  rowV13 = primer1[ which(primer1$taxonomy == currentTaxa), ]
+  rowV13 = primer1[ which(primer1[,1] == currentTaxa), ]
   rowV13$taxonomy = NULL
   rowV13$`#SampleID` = NULL
   
-  rowV45 = primer2[ which(primer2$taxonomy == currentTaxa), ]
+  rowV45 = primer2[ which(primer2[,1] == currentTaxa), ]
   rowV45$taxonomy = NULL
   rowV45$`#SampleID` = NULL
   
   if (is.na(sum(as.numeric(rowV45)))){
-    test[x,] = rowV13 # If the rowV45 is empty, then add the V13 row
+    test[x,c(2,3)] = rowV13 # If the rowV45 is empty, then add the V13 row
   } else if (is.na(sum(as.numeric(rowV13)))){
-    test[x,] = rowV45 # If the rowV13 is empty, then add the V45 row
+    test[x,c(2,3)] = rowV45 # If the rowV13 is empty, then add the V45 row
   } else { # Meaning, the taxa exists in both tables
     
     V13count = rowV13 %>% as.numeric(.) %>% dplyr::na_if(0) %>% as.data.frame(.)
