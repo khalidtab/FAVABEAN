@@ -89,6 +89,8 @@ for (x in 1:heightOfTable){ # Iterate over the rows
 test[,1] = taxonomy
 test[, -1] <- lapply(test[, -1], function(x) as.numeric(as.character(x)))
 
+test[is.na(test)] = 0
+
 write_tsv(test,"data/favabean/primer_averaged.tsv",col_names = TRUE)
 }
 
