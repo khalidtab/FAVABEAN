@@ -74,7 +74,7 @@ def all_threads(wildcards):
     
 # Now the samples_table variable has the updated "SampleNum" column and can be used in the rest of your script.
 
-rule cutadapt:
+rule trim_primers_with_cutadapt:
     input:
         fq1 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq1'],
         fq2 = lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'fastq2']
@@ -82,12 +82,14 @@ rule cutadapt:
         touch("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done")
     log:
         "data/logs/cutadapt-{batch}-{region}-{sample}.log"
+    benchmark:
+        "data/benchmarks/trim_primers_with_cutadapt-{batch}-{region}-{sample}.txt"
     params:
         primer_5 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_5'],
         primer_3 =      lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'primer_3'],
         sampleNum =     lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'SampleNum'],
         filt      =     config["initial_filter"]
-    message: "Cutadapt - Removing the adaptors for sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "trim_primers_with_cutadapt — Removing the adaptors for sample {wildcards.sample} from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/cutadapt.yaml"
     shell:
@@ -113,10 +115,12 @@ rule sequence_length_stats:
     output:
         R1="data/favabean/{batch}-{region}/.trimParamR1.txt",
         R2="data/favabean/{batch}-{region}/.trimParamR2.txt"
+    benchmark:
+        "data/benchmarks/sequence_length_stats-{batch}-{region}.txt"
     params:
         filt=config["initial_filter"],
         trim_param=config["trim_param"]
-    message: "SeqKit - Calculate descriptive statistics of the R1 and R2 sequence lengths for the samples: {wildcards.batch}, region: {wildcards.region}"
+    message: "sequence_length_stats — Calculate descriptive statistics of the R1 and R2 sequence lengths for the samples: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/seqkit.yaml"
     shell:
@@ -169,7 +173,7 @@ rule sequence_length_stats:
 
         """
 
-rule cutAndKeepSameLengthSequencesForFigaro:
+rule filter_length_for_figaro:
     input:
         sampleCutadapt=lambda wildcards: expand("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done",
                                  batch=wildcards.batch,
@@ -185,11 +189,13 @@ rule cutAndKeepSameLengthSequencesForFigaro:
         touch("data/favabean/{batch}-{region}/.{sample}_seqkit.done")
     log:
         "data/logs/seqkit-{batch}-{region}-{sample}.log"
-    message: "SeqKit - Filtering Sample: {wildcards.sample} FASTQ files based on the chosen length for R1 and R2 from batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "filter_length_for_figaro — Filtering Sample: {wildcards.sample} FASTQ files based on the chosen length for R1 and R2 from batch: {wildcards.batch}, region: {wildcards.region}"
     conda:
         "../envs/seqkit.yaml"
     params:
         sampleNum =     lambda wildcards: samples_table.loc[(wildcards.sample, wildcards.region), 'SampleNum']
+    benchmark:
+        "data/benchmarks/filter_length_for_figaro-{batch}-{region}-{sample}.txt"
     shell:
         """
         mkdir -p data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt/filteredForFigaro/{wildcards.sample}
@@ -208,7 +214,7 @@ rule cutAndKeepSameLengthSequencesForFigaro:
         """
 
 
-rule figaro:
+rule estimate_trim_params_w_figaro:
     input:
         lambda wildcards: [
             f"data/favabean/{wildcards.batch}-{wildcards.region}/.{sample}_seqkit.done"
@@ -220,7 +226,7 @@ rule figaro:
         R1="data/logs/figaro-{batch}-{region}.log"
     conda:
         "../envs/figaro.yaml"
-    message: "Figaro - calculating the optimal parameters for DADA2 trimming for batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "estimate_trim_params_w_figaro — calculating the optimal parameters for DADA2 trimming for batch: {wildcards.batch}, region: {wildcards.region}"
     params:
         expected_length = lambda wildcards: get_expected_length_from_batch_region(wildcards.batch, wildcards.region)
     threads:
@@ -235,7 +241,7 @@ rule figaro:
 
 # Note that this uses the cutadapt files, and not the figaro ones! Need to change it so that it can do that for each pair of sequences separately instead of per batch
 # Use this as your input: touch("data/favabean/{batch}-{region}/.tmp/.{sample}-cutadapt.done")
-rule dada2_1_filterTrim:
+rule dada2_1_filter_and_trim:
     input:
         "data/favabean/{batch}-{region}/figaro/trimParameters.json"
     output:
@@ -247,14 +253,16 @@ rule dada2_1_filterTrim:
         "../envs/dada2.yaml"
     params:
         figaro=config["figaro"]
-    message: "DADA2 - trimming and filtering FASTQ files based on Figaro's {params.figaro} chosen method. batch: {wildcards.batch}, region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_1_filter_and_trim-{batch}-{region}.txt"
+    message: "dada2_1_filter_and_trim — trimming and filtering FASTQ files based on Figaro's {params.figaro} chosen method. batch: {wildcards.batch}, region: {wildcards.region}"
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_1filterAndTrim.R -i {input} -f data/favabean/{wildcards.batch}-{wildcards.region}/cutadapt -o data/favabean/{wildcards.batch}-{wildcards.region}/dada2 -p {params.figaro} -c {threads} >> {log} 2>&1
         """
 
 
-rule dada2_2_learnErrors_R1:
+rule dada2_2_learn_errors_R1:
     input:
         "data/favabean/{batch}-{region}/dada2"
     output:
@@ -267,13 +275,15 @@ rule dada2_2_learnErrors_R1:
         R="R1"
     threads:
         all_threads
-    message: "DADA2 - Learning errors for R1. batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "dada2_2_learn_errors — Learning errors for R1. batch: {wildcards.batch}, region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_2_learn_errors-{batch}-{region}-R1.txt"
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_2LearnErrors.R -i {input} -r {params.R} -c {threads} >> {log} 2>&1
         """
 
-use rule dada2_2_learnErrors_R1 as dada2_2_learnErrors_R2 with:
+use rule dada2_2_learn_errors_R1 as dada2_2_learn_errors_R2 with:
     input:
         "data/favabean/{batch}-{region}/dada2"
     output:
@@ -284,7 +294,9 @@ use rule dada2_2_learnErrors_R1 as dada2_2_learnErrors_R2 with:
         "../envs/dada2.yaml"
     params:
         R="R2"
-    message: "DADA2 - Learning errors for R2. batch: {wildcards.batch}, region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_2_learn_errors-{batch}-{region}-R2.txt"
+    message: "dada2_2_learn_errors — Learning errors for R2. batch: {wildcards.batch}, region: {wildcards.region}"
 
 
 
@@ -299,9 +311,11 @@ rule dada2_3_denoise_R1:
         "../envs/dada2.yaml"
     params:
         R="R1"
-    message: "DADA2 - Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "dada2_3_denoise — Denoising amplicons based on the learned errors for R1 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
     threads:
         all_threads
+    benchmark:
+        "data/benchmarks/dada2_3_denoise-{batch}-{region}-R1.txt"
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_3denoise.R -i {input} -c {threads} -r {params.R} >> {log} 2>&1
@@ -320,9 +334,11 @@ use rule dada2_3_denoise_R1 as dada2_3_denoise_R2 with:
         determine_threads
     params:
         R="R2"
-    message: "DADA2 - Denoising amplicons based on the learned errors for R2 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_3_denoise-{batch}-{region}-R2.txt"
+    message: "dada2_3_denoise — Denoising amplicons based on the learned errors for R2 to create ASVs. batch: {wildcards.batch}, region: {wildcards.region}"
 
-rule dada2_4_mergePairedEnds:
+rule dada2_4_merge_paired_ends:
     input:
         R1="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R1.RData",
         R2="data/favabean/{batch}-{region}/dada2_DADA2Denoise-R2.RData"
@@ -332,7 +348,9 @@ rule dada2_4_mergePairedEnds:
         "data/logs/dada2-mergePairedEnds-{batch}-{region}.log"
     conda:
         "../envs/dada2.yaml"
-    message: "DADA2 - Merging ASV paired ends (R1, R2). batch: {wildcards.batch}, region: {wildcards.region}"
+    message: "dada2_4_merge_paired_ends — Merging ASV paired ends (R1, R2). batch: {wildcards.batch}, region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_4_merge_paired_ends-{batch}-{region}.txt"
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_4mergeR1R2.R -i {input.R1} -s {input.R2} >> {log} 2>&1
@@ -356,7 +374,7 @@ rule all:
         )
 
 
-rule dada2_5_ChimeraDetectAndRemove:
+rule dada2_5_remove_chimeras:
     input:
         expand(
             "data/favabean/{batch}-{region}/seqtab.tsv",
@@ -372,7 +390,9 @@ rule dada2_5_ChimeraDetectAndRemove:
         "../envs/dada2.yaml"
     threads:
         all_threads
-    message: "DADA2 - Combining the results from the different runs, then removing chimeras through a de novo process. region: {wildcards.region}"
+    message: "dada2_5_remove_chimeras — Combining the results from the different runs, then removing chimeras through a de novo process. region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_5_remove_chimeras-{region}.txt"
     shell:
         """
         Rscript --vanilla workflow/scripts/dada2_5chimera.R -i data/favabean/ -p {wildcards.region} -c {threads} -o {output} >> {log} 2>&1
@@ -390,7 +410,9 @@ rule dada2_6_condense:
         "../envs/dada2.yaml"
     threads:
         determine_threads
-    message: "DADA2 - Condensing ASVs. region: {wildcards.region}"
+    message: "dada2_6_condense — Condensing ASVs across batches. region: {wildcards.region}"
+    benchmark:
+        "data/benchmarks/dada2_6_condense-{region}.txt"
     shell:
         """
          Rscript --vanilla workflow/scripts/dada2_6condense.R -i {input} -o {output} -r {wildcards.region} >> {log} 2>&1
@@ -417,13 +439,13 @@ rule download_taxonomy_databases:
         if params.species_url:
             shell("curl -L {params.species_url} -o {output.species}")
 
-rule dada2_7_assignTaxonomy:
+rule dada2_7_assign_taxonomy:
     input:
         ASVs="data/favabean/{region}_condense.tsv",
         ref =ancient("data/resources/{db}_ref.fa.gz"),
         spec=ancient("data/resources/{db}_species.fa.gz")
     output:
-        OTU_table="data/favabean/{region}_{db}_OTU.tsv",
+        ASV_table="data/favabean/{region}_{db}_ASV.tsv",
         taxonomy ="data/favabean/{region}_{db}_taxonomy.tsv"
     log:
         "data/logs/dada2-{region}-{db}_taxonomy.log"
@@ -431,7 +453,9 @@ rule dada2_7_assignTaxonomy:
         "../envs/dada2.yaml"
     threads:
         determine_threads
-    message: "DADA2 - Assigning taxonomy to ASVs. region: {wildcards.region} using {wildcards.db} database."
+    message: "dada2_7_assign_taxonomy — Assigning taxonomy to ASVs. region: {wildcards.region} using {wildcards.db} database."
+    benchmark:
+        "data/benchmarks/dada2_7_assign_taxonomy-{region}-{db}.txt"
     shell:
         """
         Rscript --vanilla workflow/scripts/dada2_7assignTaxonomy.R \
@@ -439,30 +463,544 @@ rule dada2_7_assignTaxonomy:
             -d {input.ref} \
             -s {input.spec} \
             -c {threads} \
-            -o {output.OTU_table} \
+            -o {output.ASV_table} \
             -t {output.taxonomy} > {log} 2>&1
         """
 
-rule paired_taxonomy:
+# =============================================================================
+# SIDLE — Multi-region 16S reconstruction via SMURF EM algorithm
+#
+# Replaces primer averaging with the SMURF expectation-maximization algorithm
+# (Fuber et al. 2021) as implemented in q2-sidle (Debelius et al.),
+# ported to a standalone Python package (sidle_standalone).
+#
+# Automatically invoked when multiple primer regions are detected.
+# Primer sequences and region names are read from files_info_Batches.csv.
+# SIDLE-specific parameters are read from favabean.yaml under the "sidle:" key.
+# The reference database is taken from taxonomy_database (whichever has use: True).
+# =============================================================================
+
+# Unique regions across all batches — used to decide whether SIDLE should run
+_unique_regions = list(set(combo[1] for combo in combinations))
+
+# ---------------------------------------------------------------------------
+# SIDLE derived values — primers & regions from samples_table
+# ---------------------------------------------------------------------------
+_region_primers = (
+    samples_table[['region', 'primer_5', 'primer_3']]
+    .drop_duplicates('region')
+    .set_index('region')
+)
+SIDLE_REGIONS = list(_region_primers.index)
+
+# Illumina adapter sequences that may be prepended to biological primers
+_ILLUMINA_ADAPTERS = [
+    "ACACTCTTTCCCTACACGACGCTCTTCCGATCT",   # TruSeq Read 1
+    "GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT",  # TruSeq Read 2
+]
+
+def _strip_adapter(primer_str):
+    """Remove Illumina adapter prefix from a primer sequence, if present."""
+    s = str(primer_str).split(';')[0].strip().upper()
+    for adapter in _ILLUMINA_ADAPTERS:
+        if s.startswith(adapter):
+            return s[len(adapter):]
+    return s
+
+def _get_fwd_primer(region):
+    """Get forward biological primer for a region (adapter stripped)."""
+    return _strip_adapter(_region_primers.loc[region, 'primer_5'])
+
+def _get_rev_primer(region):
+    """Get reverse biological primer for a region (adapter stripped)."""
+    return _strip_adapter(_region_primers.loc[region, 'primer_3'])
+
+# Derive reference database from taxonomy_database config (same one used by DADA2)
+_active_db = [db for db in config["taxonomy_database"]
+              if config["taxonomy_database"][db].get("use", False)]
+if len(_active_db) == 0:
+    raise ValueError("No taxonomy database has use: True in favabean.yaml")
+SIDLE_DB  = _active_db[0].lower()
+SIDLE_REF  = f"data/resources/{_active_db[0]}_ref.fa.gz"
+SIDLE_SPEC = f"data/resources/{_active_db[0]}_species.fa.gz"
+
+# Extract versioned database name from the download URL for reporting
+# e.g. "eHOMD_RefSeq_dada2_V15.22.fasta.gz" → "eHOMD_V15.22"
+# e.g. "silva_nr99_v138.1_wSpecies_train_set.fa.gz" → "silva_v138.1"
+import re as _re
+_db_url = config["taxonomy_database"][_active_db[0]].get("url", "")
+_db_fname = _db_url.rsplit('/', 1)[-1] if _db_url else ""
+_version_match = _re.search(r'[Vv]\d+(?:\.\d+)*', _db_fname)
+DB_VERSION = f"{_active_db[0]}_{_version_match.group()}" if _version_match else _active_db[0]
+
+# SIDLE-specific config (with safe defaults if sidle: section is absent)
+_sidle_cfg    = config.get("sidle", {})
+SIDLE_MAX_MM  = _sidle_cfg.get("max_mismatch", 2)
+SIDLE_MIN_CNT = _sidle_cfg.get("min_counts", 1000)
+SIDLE_MIN_ABN = _sidle_cfg.get("min_abund", 1e-5)
+# region_normalize is now a YAML list (like trim_param / figaro); take the first element
+_norm_raw = _sidle_cfg.get("region_normalize", ["average"])
+SIDLE_NORM = _norm_raw[0] if isinstance(_norm_raw, list) else _norm_raw
+
+# If multiple primer regions exist, SIDLE reconstruction is triggered automatically
+_sidle_inputs = (
+    ["data/favabean/reconstructed_ASV.biom",
+     "data/favabean/reconstructed_ASV_species.biom",
+     "data/favabean/sidle/reconstructed_taxonomy.tsv"]
+    if len(_unique_regions) > 1 else []
+)
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 1: Convert DADA2 condense output to FASTA + count TSV per region
+# ---------------------------------------------------------------------------
+rule sidle_extract_asvs:
     input:
-        expand("data/favabean/{region}_{db}_OTU.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)])
+        condense = "data/favabean/{region}_condense.tsv"
     output:
-        touch("data/favabean/.doneprimer_averaged.txt")
+        fasta      = "data/favabean/sidle/{region}/rep_seqs.fasta",
+        counts     = "data/favabean/sidle/{region}/asv_counts.tsv",
+        seqlengths = "data/favabean/sidle/{region}/seqlengths.txt"
     log:
-        "data/logs/primer_averaging.log"
+        "data/logs/sidle-extract_asvs-{region}.log"
+    benchmark:
+        "data/benchmarks/sidle_extract_asvs-{region}.txt"
     conda:
-        "../envs/biom.yaml"
-    message: "Creating biom files, and primer averaging, if needed."
+        "../envs/dada2.yaml"
+    message:
+        "SIDLE [1/8] — Extracting ASV representative sequences and abundance counts from the DADA2 condensed sequence table for region {wildcards.region}. Outputs a FASTA file of unique ASVs, a sample-by-ASV count matrix, and a sequence-length summary needed for downstream trimming."
     shell:
         """
-        Rscript --vanilla workflow/scripts/primer_average.R > {log} 2>&1
-        ls data/favabean/*OTU.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy' > {log} 2>&1
-        ls data/favabean/*taxonomy.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"' > {log} 2>&1
-        if [ -f data/favabean/primer_averaged.tsv ]; then
-          ls data/favabean/primer_averaged.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"' > {log} 2>&1
-        else
-          echo "File data/favabean/primer_averaged.tsv does not exist, skipping step."
-        fi
+        mkdir -p data/favabean/sidle/{wildcards.region} &&
+        Rscript --vanilla workflow/scripts/seqtab_to_fasta.R \
+            {input.condense} {output.fasta} {output.counts} {output.seqlengths} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 2: Trim ASVs to uniform length (required for SIDLE alignment)
+# ---------------------------------------------------------------------------
+rule sidle_trim_asvs:
+    input:
+        fasta      = "data/favabean/sidle/{region}/rep_seqs.fasta",
+        counts     = "data/favabean/sidle/{region}/asv_counts.tsv",
+        seqlengths = "data/favabean/sidle/{region}/seqlengths.txt"
+    output:
+        fasta  = "data/favabean/sidle/{region}/trimmed_seqs.fasta",
+        counts = "data/favabean/sidle/{region}/trimmed_counts.tsv"
+    log:
+        "data/logs/sidle-trim_asvs-{region}.log"
+    benchmark:
+        "data/benchmarks/sidle_trim_asvs-{region}.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [2/8] — Trimming all ASVs in region {wildcards.region} to a uniform length. SIDLE's k-mer alignment requires fixed-length sequences so that ASVs and reference k-mers can be compared at the same positions."
+    shell:
+        """
+        TRIM_LEN=$(head -1 {input.seqlengths}) &&
+        python -m sidle_standalone.cli trim \
+            {input.fasta} {input.counts} \
+            {output.fasta} {output.counts} \
+            --trim-length $TRIM_LEN > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 3-prep: Prepare SIDLE-ready reference from DADA2 training FASTAs
+#
+# DADA2 training sets use taxonomy-as-header FASTAs that often have
+# non-unique headers (e.g., eHOMD has 1015 sequences but only 219 unique
+# genus-level headers). read_fasta()'s dict-based storage silently drops
+# duplicates. Species info lives in a separate file.
+#
+# This rule merges both files into a single FASTA with:
+#   - Unique sequence IDs (accession numbers from species file)
+#   - Species-enriched taxonomy (appended as 7th rank)
+# and produces a taxonomy TSV for Rule 7.
+# ---------------------------------------------------------------------------
+rule sidle_prepare_reference:
+    input:
+        ref  = SIDLE_REF,
+        spec = SIDLE_SPEC
+    output:
+        prepared = "data/favabean/sidle/reference/prepared_ref.fasta",
+        taxonomy = "data/favabean/sidle/reference/taxonomy.tsv"
+    log:
+        "data/logs/sidle-prepare_reference.log"
+    benchmark:
+        "data/benchmarks/sidle_prepare_reference.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [3-prep/8] — Preparing a SIDLE-ready reference database by merging the DADA2 training-set FASTA (taxonomy-as-header, genus-level) with the species-assignment FASTA (accession + binomial). This ensures every reference sequence has a unique ID and includes species-level taxonomy, enabling SIDLE to resolve taxonomy below genus."
+    shell:
+        """
+        mkdir -p data/favabean/sidle/reference &&
+        python workflow/scripts/prepare_sidle_reference.py \
+            {input.ref} {input.spec} \
+            {output.prepared} {output.taxonomy} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 3a: In-silico PCR — extract amplicon region from reference
+#
+# Uses skbio.DNA.to_regex() for IUPAC-degenerate-aware primer matching
+# (same approach as QIIME2 feature-classifier extract-reads).
+# Degenerate bases in the primer become regex character classes
+# (e.g. Y->[CT], R->[AG]), so they match natively without burning
+# mismatch budget. Extracts the amplicon between the primers.
+# ---------------------------------------------------------------------------
+rule sidle_extract_ref:
+    input:
+        ref = "data/favabean/sidle/reference/prepared_ref.fasta"
+    output:
+        extracted = "data/favabean/sidle/reference/{region}_extracted.fasta"
+    params:
+        fwd_primer = lambda wildcards: _get_fwd_primer(wildcards.region),
+        rev_primer = lambda wildcards: _get_rev_primer(wildcards.region),
+        max_mismatch = _sidle_cfg.get("primer_max_mismatch", 1)
+    log:
+        "data/logs/sidle-extract_ref-{region}.log"
+    benchmark:
+        "data/benchmarks/sidle_extract_ref-{region}.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [3a/8] — In-silico PCR: using the {wildcards.region} primer pair to extract the corresponding amplicon region from the full-length reference database. Degenerate bases in the primers are expanded to regex character classes (via skbio) so that ambiguous positions match natively."
+    shell:
+        """
+        python -c "
+import re, gzip, sys
+from skbio import DNA
+from Bio import SeqIO
+
+fwd_str = '{params.fwd_primer}'
+rev_str = '{params.rev_primer}'
+fwd = DNA(fwd_str)
+rev_rc = DNA(rev_str).reverse_complement()
+fwd_pat = re.compile(fwd.to_regex().pattern, re.IGNORECASE)
+rev_pat = re.compile(rev_rc.to_regex().pattern, re.IGNORECASE)
+
+# Build truncated forward patterns for cases where the reference
+# sequence starts inside the primer binding site (primer overhangs
+# the 5-prime end). Trim up to half the primer from the 5-prime end.
+min_fwd = max(8, len(fwd_str) // 2)
+fwd_trunc = []
+for k in range(1, len(fwd_str) - min_fwd + 1):
+    sub = DNA(fwd_str[k:])
+    pat = re.compile('^' + sub.to_regex().pattern, re.IGNORECASE)
+    fwd_trunc.append((k, pat))
+
+handle = gzip.open('{input.ref}', 'rt') if '{input.ref}'.endswith('.gz') else open('{input.ref}')
+import os; os.makedirs(os.path.dirname('{output.extracted}'), exist_ok=True)
+n_in = n_out = 0
+with open('{output.extracted}', 'w') as out:
+    for rec in SeqIO.parse(handle, 'fasta'):
+        n_in += 1
+        seq = str(rec.seq)
+        # Try full forward primer first
+        fwd_m = fwd_pat.search(seq)
+        if fwd_m:
+            amp_start = fwd_m.end()
+        else:
+            # Try truncated primers anchored at sequence start
+            amp_start = None
+            for k, pat in fwd_trunc:
+                m = pat.match(seq)
+                if m:
+                    amp_start = m.end()
+                    break
+            if amp_start is None:
+                continue
+        # Search for reverse primer after forward match
+        rev_m = rev_pat.search(seq, amp_start)
+        if not rev_m:
+            continue
+        amplicon = seq[amp_start:rev_m.start()]
+        if len(amplicon) < 50:
+            continue
+        # Use rec.description (full header) and normalize spaces after
+        # semicolons so BioPython rec.id won't truncate species names.
+        # Handles eHOMD ('; species'), Greengenes ('; p__'), SILVA (no spaces).
+        seq_id = rec.description.replace('; ', ';')
+        out.write('>' + seq_id + chr(10) + amplicon + chr(10))
+        n_out += 1
+handle.close()
+print(f'Extracted {{n_out}}/{{n_in}} sequences for region {wildcards.region}')
+if n_out == 0:
+    print('ERROR: No sequences matched primers', file=sys.stderr)
+    sys.exit(1)
+" > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 3b: Prepare k-mers from the extracted regional reference
+# ---------------------------------------------------------------------------
+rule sidle_prepare_database:
+    input:
+        ref        = "data/favabean/sidle/reference/{region}_extracted.fasta",
+        seqlengths = "data/favabean/sidle/{region}/seqlengths.txt"
+    output:
+        kmers    = "data/favabean/sidle/reference/{region}_kmers.fasta",
+        kmer_map = "data/favabean/sidle/reference/{region}_kmer_map.tsv"
+    params:
+        fwd_primer  = lambda wildcards: _get_fwd_primer(wildcards.region),
+        rev_primer  = lambda wildcards: _get_rev_primer(wildcards.region)
+    log:
+        "data/logs/sidle-prepare_db-{region}.log"
+    benchmark:
+        "data/benchmarks/sidle_prepare_database-{region}.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [3b/8] — Splitting the extracted {wildcards.region} reference amplicons into fixed-length k-mers that match the ASV trim length. Produces a k-mer FASTA for alignment and a map linking each k-mer back to its parent reference sequence and genomic position."
+    shell:
+        """
+        mkdir -p data/favabean/sidle/reference &&
+        TRIM_LEN=$(head -1 {input.seqlengths}) &&
+        python -m sidle_standalone.cli extract \
+            {input.ref} {wildcards.region} $TRIM_LEN \
+            {params.fwd_primer} {params.rev_primer} \
+            {output.kmers} {output.kmer_map} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 4: Align trimmed ASVs to reference k-mers per region
+# ---------------------------------------------------------------------------
+rule sidle_align:
+    input:
+        kmers = "data/favabean/sidle/reference/{region}_kmers.fasta",
+        asvs  = "data/favabean/sidle/{region}/trimmed_seqs.fasta"
+    output:
+        alignment = "data/favabean/sidle/{region}/alignment.tsv"
+    params:
+        max_mismatch = SIDLE_MAX_MM
+    log:
+        "data/logs/sidle-align-{region}.log"
+    benchmark:
+        "data/benchmarks/sidle_align-{region}.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [4/8] — Aligning trimmed ASVs from region {wildcards.region} against reference k-mers (max {params.max_mismatch} mismatches). Each ASV is matched to one or more reference k-mers, establishing which reference sequences could have generated the observed ASV."
+    shell:
+        """
+        python -m sidle_standalone.cli align \
+            {input.kmers} {input.asvs} {wildcards.region} \
+            {output.alignment} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 5: Build database map (combines all regions)
+# ---------------------------------------------------------------------------
+rule sidle_build_db_map:
+    input:
+        alignments = expand("data/favabean/sidle/{region}/alignment.tsv", region=SIDLE_REGIONS),
+        kmer_maps  = expand("data/favabean/sidle/reference/{region}_kmer_map.tsv", region=SIDLE_REGIONS)
+    output:
+        db_map     = "data/favabean/sidle/database_map.tsv",
+        db_summary = "data/favabean/sidle/database_summary.tsv",
+        regions_list     = temp("data/favabean/sidle/_regions.txt"),
+        alignments_list  = temp("data/favabean/sidle/_alignments.txt"),
+        kmer_maps_list   = temp("data/favabean/sidle/_kmer_maps.txt")
+    params:
+        regions_str     = "\n".join(SIDLE_REGIONS),
+        alignments_str  = lambda wildcards, input: "\n".join(input.alignments),
+        kmer_maps_str   = lambda wildcards, input: "\n".join(input.kmer_maps)
+    log:
+        "data/logs/sidle-build_db_map.log"
+    benchmark:
+        "data/benchmarks/sidle_build_db_map.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [5/8] — Building a cross-region database map by combining k-mer alignments and reference maps from all regions ({SIDLE_REGIONS}). This identifies which full-length reference sequences are supported by ASV evidence across multiple primer regions, resolving ambiguities that exist within any single region."
+    shell:
+        """
+        printf '{params.regions_str}\n' > {output.regions_list}
+        printf '{params.alignments_str}\n' > {output.alignments_list}
+        printf '{params.kmer_maps_str}\n' > {output.kmer_maps_list}
+        python -m sidle_standalone.cli build-db \
+            {output.regions_list} {output.alignments_list} {output.kmer_maps_list} \
+            {output.db_map} {output.db_summary} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 6: EM reconstruction (combines all regions)
+# ---------------------------------------------------------------------------
+rule sidle_reconstruct:
+    input:
+        alignments = expand("data/favabean/sidle/{region}/alignment.tsv", region=SIDLE_REGIONS),
+        counts     = expand("data/favabean/sidle/{region}/trimmed_counts.tsv", region=SIDLE_REGIONS),
+        db_map     = "data/favabean/sidle/database_map.tsv",
+        db_summary = "data/favabean/sidle/database_summary.tsv"
+    output:
+        recon_counts     = "data/favabean/sidle/reconstructed_counts.tsv",
+        regions_list     = temp("data/favabean/sidle/_recon_regions.txt"),
+        alignments_list  = temp("data/favabean/sidle/_recon_alignments.txt"),
+        counts_list      = temp("data/favabean/sidle/_recon_counts.txt")
+    params:
+        min_counts      = SIDLE_MIN_CNT,
+        min_abund       = SIDLE_MIN_ABN,
+        norm            = SIDLE_NORM,
+        regions_str     = "\n".join(SIDLE_REGIONS),
+        alignments_str  = lambda wildcards, input: "\n".join(input.alignments),
+        counts_str      = lambda wildcards, input: "\n".join(input.counts)
+    log:
+        "data/logs/sidle-reconstruct.log"
+    benchmark:
+        "data/benchmarks/sidle_reconstruct.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [6/8] — Running the SMURF expectation-maximization (EM) algorithm to reconstruct a unified abundance table from all regions ({SIDLE_REGIONS}). The EM iteratively assigns ambiguous ASV counts to reference sequences by leveraging cross-region evidence until convergence (min counts: {params.min_counts}, min abundance: {params.min_abund}, normalization: {params.norm})."
+    shell:
+        """
+        printf '{params.regions_str}\n' > {output.regions_list}
+        printf '{params.alignments_str}\n' > {output.alignments_list}
+        printf '{params.counts_str}\n' > {output.counts_list}
+        python -m sidle_standalone.cli reconstruct \
+            {output.regions_list} {output.alignments_list} {output.counts_list} \
+            {input.db_map} {input.db_summary} {output.recon_counts} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 7: Reconstruct taxonomy
+#
+# NOTE: The taxonomy TSV (reference/taxonomy.tsv) is now produced by
+# Rule 3-prep (sidle_prepare_reference), which merges species info from
+# the species FASTA and assigns unique accession-based IDs. The old
+# Rule 7a (sidle_extract_taxonomy) has been removed.
+# ---------------------------------------------------------------------------
+rule sidle_assign_taxonomy:
+    input:
+        db_map   = "data/favabean/sidle/database_map.tsv",
+        taxonomy = "data/favabean/sidle/reference/taxonomy.tsv"
+    output:
+        recon_tax = "data/favabean/sidle/reconstructed_taxonomy.tsv"
+    params:
+        database = SIDLE_DB
+    log:
+        "data/logs/sidle-taxonomy.log"
+    benchmark:
+        "data/benchmarks/sidle_assign_taxonomy.txt"
+    conda:
+        "../envs/sidle.yaml"
+    message:
+        "SIDLE [7/8] — Assigning taxonomy to reconstructed features using the {params.database} reference database. Each reconstructed feature may map to multiple reference sequences; taxonomy is determined by finding the lowest common ancestor (LCA) across all contributing references, weighted by the EM-derived assignments. Species-level resolution is possible when all contributing references for a feature share the same species."
+    shell:
+        """
+        python -m sidle_standalone.cli taxonomy \
+            {input.db_map} {input.taxonomy} {output.recon_tax} \
+            --database {params.database} > {log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# SIDLE Rule 8: Merge counts + taxonomy and convert to BIOM format
+#
+# Produces TWO output tables:
+#   - reconstructed_ASV         : accession-level (one row per reference
+#                                 sequence / clade), preserving the full
+#                                 granularity of the SMURF EM estimates.
+#   - reconstructed_ASV_species : species-condensed (rows that share the
+#                                 same taxonomy string are merged by summing
+#                                 their counts).
+# Both are written as TSV and BIOM.
+# ---------------------------------------------------------------------------
+rule sidle_to_biom:
+    input:
+        counts   = "data/favabean/sidle/reconstructed_counts.tsv",
+        taxonomy = "data/favabean/sidle/reconstructed_taxonomy.tsv"
+    output:
+        accession_tsv  = "data/favabean/reconstructed_ASV.tsv",
+        accession_biom = "data/favabean/reconstructed_ASV.biom",
+        species_tsv    = "data/favabean/reconstructed_ASV_species.tsv",
+        species_biom   = "data/favabean/reconstructed_ASV_species.biom"
+    log:
+        "data/logs/sidle-to_biom.log"
+    benchmark:
+        "data/benchmarks/sidle_to_biom.txt"
+    conda:
+        "../envs/biom.yaml"
+    message:
+        "SIDLE [8/8] — Merging the reconstructed abundance table with taxonomy assignments into two output tables: (1) accession-level (one row per reference clade) and (2) species-condensed (rows sharing the same taxonomy summed together). Both are saved as TSV and BIOM."
+    shell:
+        """
+        python -c "
+import pandas as pd
+
+counts = pd.read_csv('{input.counts}', sep=chr(9), index_col=0)
+tax = pd.read_csv('{input.taxonomy}', sep=chr(9), index_col=0)
+
+# Assign taxonomy to each feature
+counts['taxonomy'] = tax.reindex(counts.index).iloc[:, 0].fillna('')
+sample_cols = [c for c in counts.columns if c != 'taxonomy']
+
+# --- Accession-level table (full EM resolution) ---
+acc = counts.copy()
+acc.index.name = '#OTU ID'
+acc.to_csv('{output.accession_tsv}', sep=chr(9))
+n_acc = len(acc)
+print(f'Accession-level: {{n_acc}} features')
+
+# --- Species-condensed table (sum counts for identical taxonomy) ---
+condensed = counts.groupby('taxonomy', sort=False)[sample_cols].sum()
+condensed.index.name = '#OTU ID'
+condensed['taxonomy'] = condensed.index
+condensed.to_csv('{output.species_tsv}', sep=chr(9))
+n_cond = len(condensed)
+print(f'Species-condensed: {{n_acc}} features -> {{n_cond}} unique taxa')
+" > {log} 2>&1 &&
+        biom convert \
+            -i {output.accession_tsv} \
+            -o {output.accession_biom} \
+            --to-json \
+            --table-type="OTU table" \
+            --process-obs-metadata taxonomy >> {log} 2>&1 &&
+        biom convert \
+            -i {output.species_tsv} \
+            -o {output.species_biom} \
+            --to-json \
+            --table-type="OTU table" \
+            --process-obs-metadata taxonomy >> {log} 2>&1
+        """
+
+
+# =============================================================================
+# Final pipeline rules
+# =============================================================================
+
+rule paired_taxonomy:
+    input:
+        expand("data/favabean/{region}_{db}_ASV.tsv",region=[combo[1] for combo in combinations],db=[db for db in config["taxonomy_database"] if config["taxonomy_database"][db].get("use", False)]),
+        *_sidle_inputs
+    output:
+        touch("data/favabean/.done_biom_convert.txt"),
+        preprocess_summary = "data/favabean/preprocessing_summary.tsv",
+        benchmark_summary = "data/benchmarks/benchmark_summary.tsv",
+        benchmark_summary_favabean = "data/favabean/benchmark_summary.tsv"
+    log:
+        "data/logs/biom_convert.log"
+    benchmark:
+        "data/benchmarks/paired_taxonomy.txt"
+    conda:
+        "../envs/biom.yaml"
+    message: "Converting per-region ASV and taxonomy tables to BIOM format, and performing preprocess and benchmark summaries"
+    shell:
+        """
+        ls data/favabean/*_*_ASV.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table" --process-obs-metadata taxonomy' > {log} 2>&1
+        ls data/favabean/*_*_taxonomy.tsv | parallel 'biom convert -i {{}} -o {{.}}.biom --to-json --table-type="OTU table"' >> {log} 2>&1
+        Rscript --vanilla workflow/scripts/preprocessing_summary.R {output.preprocess_summary} {DB_VERSION} > data/logs/preprocessing_summary.log 2>&1
+        Rscript --vanilla workflow/scripts/compile_benchmarks.R {output.benchmark_summary} > data/logs/compile_benchmarks.log 2>&1
+        cp {output.benchmark_summary} {output.benchmark_summary_favabean}
+        cp $(echo {output.benchmark_summary} | sed 's/\\.tsv$/_detail.tsv/') $(echo {output.benchmark_summary_favabean} | sed 's/\\.tsv$/_detail.tsv/')
         """
 
 rule paired:

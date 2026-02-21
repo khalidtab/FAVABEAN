@@ -54,7 +54,7 @@ taxonomy = paste0("k__",taxa5$Kingdom,"; p__",taxa5$Phylum,"; c__",taxa5$Class,"
 
 inputMatrix2 = cbind(inputMatrix,taxonomy)
 OTU_IDs = rownames(inputMatrix2)
-inputMatrix3 = cbind(paste0("OTU",OTU_IDs),inputMatrix2)
+inputMatrix3 = cbind(paste0("ASV",OTU_IDs),inputMatrix2)
 
 colnames(inputMatrix3)[1] = "#SampleID"
 taxonomy = data.frame(OTU_ID = inputMatrix3$`#SampleID`, Sequences = inputMatrix3$SampleIDs, Taxonomy = inputMatrix3$taxonomy)

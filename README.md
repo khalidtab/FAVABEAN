@@ -33,3 +33,28 @@ If all is ready, you can run the pipeline by executing the following command (wh
 
 Note that `--use-conda` is mandatory for the correct execution of the pipeline, but the rest of the commands are modifiable. Check `snakemake --help` for more information.
 
+## Quick-start example
+
+A bundled example with small test FASTQ files is included in `examples/`. To run the full pipeline end-to-end:
+
+```bash
+bash examples/run_example.sh
+```
+
+This copies 16 truncated FASTQ files (2 samples, 2 amplicon regions, 2 sequencing batches), a pre-configured `files_info.csv`, and a minimal `favabean.yaml` into `data/`, then runs the complete pipeline. See `examples/run_example.sh` for details.
+
+## System requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| Docker image | ~2.2 GB (compressed) | — |
+| RAM | 4 GB | 8+ GB |
+| Disk | 10 GB + your data | 20+ GB for large datasets |
+| CPU | 2 cores | 4+ cores |
+
+The Docker image includes all dependencies pre-installed. No additional software is needed beyond Docker itself. These requirements are reasonable for a modern laptop, making the pipeline accessible without access to a computing cluster.
+
+## Restarting from intermediate steps
+
+Snakemake tracks all inputs and outputs as a directed acyclic graph (DAG). If a run is interrupted or you want to re-run from a specific step, simply re-execute the same `snakemake` command — completed steps are automatically detected and skipped. To force re-execution from a particular step, delete that step's output files and Snakemake will recompute only the affected downstream steps.
+

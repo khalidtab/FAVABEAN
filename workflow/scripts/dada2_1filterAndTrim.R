@@ -102,3 +102,15 @@ result <- withCallingHandlers( # Use withCallingHandlers to capture warnings
 )
 
 # The 'result' variable now contains the output from either the original or alternative command
+
+# Save filter statistics so preprocessing_summary.R can report pre/post-filter read counts.
+# The 'sample' column uses the filtered filename convention that downstream scripts expect.
+filter_stats <- data.frame(
+  sample = paste0(sample.names, "_filt_S1_L001_R1_001.fastq.gz"),
+  reads.in  = result[, "reads.in"],
+  reads.out = result[, "reads.out"],
+  stringsAsFactors = FALSE
+)
+if (!dir.exists(outputFolder)) dir.create(outputFolder, recursive = TRUE, showWarnings = FALSE)
+write_tsv(filter_stats, file.path(outputFolder, "filter_stats.tsv"))
+message("Filter statistics saved to ", file.path(outputFolder, "filter_stats.tsv"))

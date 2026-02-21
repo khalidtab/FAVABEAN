@@ -1,73 +1,50 @@
+# =============================================================================
+# build.snakefile — Pre-create all conda environments at Docker build time
+#
+# Used by .build.dockerfile with:
+#   snakemake snakefile.final --use-conda --cores all --conda-create-envs-only
+#
+# Each rule references one conda env yaml so that Snakemake resolves and
+# caches every environment during the image build.
+# =============================================================================
+
 rule all:
-   input: "{sample}.final"
-   shell: "touch {input}"
+    input:
+        "cutadapt.done",
+        "seqkit.done",
+        "figaro.done",
+        "dada2.done",
+        "biom.done",
+        "sidle.done"
+    output:
+        touch("snakefile.final")
 
-rule figaro:
-   conda:
-      "./workflow/envs/figaro.yaml"
-   message: "Creating Figaro"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}figaro"))
-   shell:
-      "touch {output}"
+rule build_cutadapt:
+    output: touch("cutadapt.done")
+    conda: "workflow/envs/cutadapt.yaml"
+    shell: "echo 'cutadapt env created'"
 
-rule cutadapt:
-   conda:
-      "./workflow/envs/cutadapt.yaml"
-   message: "Creating cutadapt"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}cutadapt"))
-   shell:
-      "touch {output}"
+rule build_seqkit:
+    output: touch("seqkit.done")
+    conda: "workflow/envs/seqkit.yaml"
+    shell: "echo 'seqkit env created'"
 
-rule seqkit:
-   conda:
-      "./workflow/envs/seqkit.yaml"
-   message: "Creating seqkit"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}seqkit"))
-   shell:
-      "touch {output}"
+rule build_figaro:
+    output: touch("figaro.done")
+    conda: "workflow/envs/figaro.yaml"
+    shell: "echo 'figaro env created'"
 
+rule build_dada2:
+    output: touch("dada2.done")
+    conda: "workflow/envs/dada2.yaml"
+    shell: "echo 'dada2 env created'"
 
-rule dada2:
-   conda:
-      "./workflow/envs/dada2.yaml"
-   message: "Creating dada2"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}dada2"))
-   shell:
-      "touch {output}"
+rule build_biom:
+    output: touch("biom.done")
+    conda: "workflow/envs/biom.yaml"
+    shell: "echo 'biom env created'"
 
-rule biom:
-   conda:
-      "./workflow/envs/biom.yaml"
-   message: "Creating biom"
-   input:
-      "{sample}"
-   output:
-      temporary(touch("{sample}biom"))
-   shell:
-      "touch {output}"
-
-
-rule results:
-   input:
-      rules.figaro.output,
-      rules.cutadapt.output,
-      rules.seqkit.output,
-      rules.dada2.output,
-      rules.biom.output
-   message: "Cleaning up…"
-   output:
-      "{sample}.final"
-   shell:
-      "conda clean -a && echo Done building environments"
+rule build_sidle:
+    output: touch("sidle.done")
+    conda: "workflow/envs/sidle.yaml"
+    shell: "echo 'sidle env created'"
