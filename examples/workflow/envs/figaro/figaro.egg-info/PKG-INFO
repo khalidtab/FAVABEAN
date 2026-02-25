@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: figaro
+Version: 0.1
+Summary: FIGARO - An efficient and objective tool for optimizing microbiome rRNA gene trimming parameters
+License: GPLv3
+Classifier: Development Status :: 4 - Beta
+Classifier: Topic :: Scientific Engineering :: Bio/Informatics
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3.7
+License-File: LICENSE
+Requires-Dist: numpy>=1.13.1
+Requires-Dist: scipy>=1.2.1
+Requires-Dist: matplotlib>=3.0.2
