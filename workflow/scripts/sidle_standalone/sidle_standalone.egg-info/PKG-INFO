@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: sidle-standalone
+Version: 1.0.0
+Summary: Multi-region 16S reconstruction without QIIME2
+Author: Modified from q2-sidle by Justine Debelius
+License: BSD-3-Clause
+Requires-Python: >=3.7
+License-File: LICENSE
+Requires-Dist: numpy>=1.19.0
+Requires-Dist: pandas>=1.1.0
+Requires-Dist: biopython>=1.78
+Requires-Dist: scikit-bio>=0.5.6
+Dynamic: author
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

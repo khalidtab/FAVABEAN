@@ -298,13 +298,7 @@ def _scale_relative_abundance(align_mat, relative, counts, seq_summary, num_regi
     align_mat = align_mat[align_mat['clean_name'].isin(relative.index) & align_mat['asv'].isin(counts.index)]
     align = align_mat.pivot_table(values='norm', index='asv', columns='clean_name', fill_value=0)
     align = align[relative.index]
-
-    # Intersect indices so boolean masks match DataFrame dimensions
-    # (mirrors the shared_idx logic in _solve_iterative_noisy)
-    shared_asvs = align.index.intersection(counts.index)
-    align = align.loc[shared_asvs]
-    counts = counts.loc[shared_asvs]
-
+    
     scaled_list = []
     for sample in counts.columns:
         non_zero_asvs = (counts[sample] > 0).values

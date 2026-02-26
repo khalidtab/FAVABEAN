@@ -1,0 +1,2 @@
+[console_scripts]
+sidle = sidle_standalone.cli:main
