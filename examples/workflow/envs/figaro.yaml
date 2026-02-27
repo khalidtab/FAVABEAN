@@ -1,9 +1,0 @@
-name: figaro
-channels:
-    - bioconda
-    - conda-forge
-    - cctbx202211
-    - fastchan
-dependencies:
-    - r-base
-    - python=3.7
